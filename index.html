@@ -15,9 +15,20 @@
     <div id="hud" hidden>
       <div id="vignette"></div>
       <div id="noise"></div>
-      <div id="horizon"><i></i><i></i></div>
-      <div id="reticle"><span class="dot"></span><span class="tick l"></span><span class="tick r"></span><span class="tick b"></span></div>
+      <canvas id="overlay"></canvas>
+      <div id="reticle"><i class="l"></i><i class="r"></i><i class="t"></i><i class="b"></i></div>
       <div id="markers"></div>
+
+      <!-- Telemetry strip -->
+      <div id="strip">
+        <div class="strip-l"><span class="rec"></span><b id="t-mission"></b><span id="state"></span></div>
+        <div class="strip-r">
+          <span class="cell"><label>FLT</label><b id="t-clock">00:00</b></span>
+          <span class="cell"><label>SIG</label><i id="t-signal" class="signal" data-bars="4"><s></s><s></s><s></s><s></s></i></span>
+          <span class="cell"><label>GPS</label><b id="t-sats">14</b></span>
+          <span class="cell"><label>BAT</label><b id="t-batt-top">100%</b></span>
+        </div>
+      </div>
 
       <div id="objective" class="panel">
         <h4 id="obj-title"></h4>
@@ -28,33 +39,39 @@
         </div>
       </div>
 
-      <div id="center-top">
-        <div id="state"></div>
-        <div id="toasts"></div>
-      </div>
+      <div id="toasts"></div>
 
       <div id="topright">
-        <canvas id="radar" width="156" height="156"></canvas>
-        <div id="wind"><span id="wind-arrow">↑</span><span id="wind-txt"></span></div>
+        <canvas id="radar" width="260" height="260"></canvas>
+        <div id="wind"><span id="wind-arrow">↑</span><span>WIND</span><b id="wind-txt"></b></div>
       </div>
 
-      <div id="flight" class="panel">
-        <div class="read"><label>ALT</label><b id="v-alt">0</b><small>m</small></div>
-        <div class="read"><label>SPD</label><b id="v-spd">0</b><small>m/s</small></div>
-        <div class="read"><label>V/S</label><b id="v-vs">0</b><small>m/s</small></div>
-        <div class="read wide"><label>HDG</label><b id="v-hdg">000°</b></div>
+      <!-- Bottom instruments -->
+      <div id="cluster-l">
+        <div class="stick" id="stick-l"><i></i></div>
+        <canvas id="dial"></canvas>
       </div>
-
-      <div id="systems" class="panel">
-        <div class="gauge"><label>BATTERY</label><div class="bar"><i id="b-batt" class="batt"></i></div><b id="t-batt"></b></div>
-        <div class="gauge"><label>HULL</label><div class="bar"><i id="b-hull" class="hull"></i></div><b id="t-hull"></b></div>
-        <div class="gauge"><label id="l-pay">PAYLOAD</label><div class="bar"><i id="b-pay" class="pay"></i></div><b id="t-pay"></b></div>
-        <div id="pay-extra"></div>
+      <div id="cluster-c">
+        <canvas id="att"></canvas>
+        <div class="readouts">
+          <span><label>HDG</label><b id="v-hdg">000°</b></span>
+          <span><label>V/S</label><b id="v-vs">0</b><small>m/s</small></span>
+          <span><label>HOME</label><b id="v-home">0</b><small>m</small></span>
+        </div>
+      </div>
+      <div id="cluster-r">
+        <div id="systems" class="panel">
+          <div class="gauge"><label>BATTERY</label><div class="bar"><i id="b-batt" class="batt"></i></div><b id="t-batt"></b></div>
+          <div class="gauge"><label>HULL</label><div class="bar"><i id="b-hull" class="hull"></i></div><b id="t-hull"></b></div>
+          <div class="gauge"><label id="l-pay">PAYLOAD</label><div class="bar"><i id="b-pay" class="pay"></i></div><b id="t-pay"></b></div>
+          <div id="pay-extra"></div>
+        </div>
+        <div class="stick" id="stick-r"><i></i></div>
       </div>
 
       <div id="warn"></div>
       <div id="hint"></div>
-      <div id="keys">ESC pause · M mute</div>
+      <div id="keys">ESC menu · M mute</div>
     </div>
 
     <!-- Menus -->

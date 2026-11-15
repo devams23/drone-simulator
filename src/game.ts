@@ -66,6 +66,7 @@ export class Game {
   quality: Quality = 'high';
   /** Roam freely: no objectives, timer or failure. */
   free = false;
+  private respawnT = 0;
   readonly sound = new Sound();
   readonly input: Input;
   readonly hud = new Hud();
@@ -206,7 +207,8 @@ export class Game {
     this.input.read(); // drop any stale mouse movement
     this.hud.reset();
     this.hud.show(true);
-    this.hud.toast('Hold climb to spin up and take off', 'info');
+    this.respawnT = 0;
+    this.hud.toast(this.free ? 'Free flight — roam anywhere, Esc for menu' : 'Hold climb to spin up and take off', 'info');
   }
 
   setPaused(p: boolean) {
@@ -284,7 +286,8 @@ export class Game {
     const c = flying ? this.input.read() : IDLE;
     if (this.input.scheme === 'rc') c.mouseYaw = 0;
     d.update(dt, c, { world: m.world, wind: m.wind, waterY: m.waterY });
-    if (flying && m.status === 'active') m.update(dt, c);
+    if (flying && m.status === 'active' && !this.free) m.update(dt, c);
+    if (this.free && d.alive) d.battery = 1;
 
     // Recharge while sitting on the home pad.
     const onPad = d.landed && Math.hypot(d.pos.x - m.pad.x, d.pos.z - m.pad.z) < 7;
@@ -312,9 +315,12 @@ export class Game {
       }
     }
 
-    this.hud.update(d, m, this.camera, dt, this.input.scheme);
+    this.hud.update(d, m, this.camera, dt, this.input.scheme, c, this.free);
 
-    if (flying) {
+    if (flying && this.free) {
+      // Free flight never ends: after a crash, put a fresh drone on the pad.
+      if (!d.alive && (this.respawnT += dt) > 2.5) this.start(d.spec);
+    } else if (flying) {
       if (m.status === 'won') this.finish(true, '');
       else if (m.status === 'lost') this.finish(false, m.failReason);
       else if (!d.alive) this.finish(false, d.deathReason || 'Drone lost');
