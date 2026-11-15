@@ -256,21 +256,23 @@ export class World {
   }
 
   private buildGrass(cfg: NonNullable<TerrainCfg['grass']>) {
-    const map = canvasTex(128, 128, (g) => {
-      for (let i = 0; i < 34; i++) {
-        const x0 = 64 + (Math.random() - 0.5) * 60;
-        const lean = (Math.random() - 0.5) * 70;
-        const top = 8 + Math.random() * 60;
-        const grad = g.createLinearGradient(0, 128, 0, top);
-        const v = 185 + Math.random() * 60;
-        grad.addColorStop(0, `rgb(${v * 0.62},${v * 0.68},${v * 0.55})`);
-        grad.addColorStop(1, `rgb(${v},${v + 10},${v * 0.82})`);
+    const map = canvasTex(256, 256, (g) => {
+      for (let i = 0; i < 110; i++) {
+        const x0 = 128 + (Math.random() - 0.5) * 150;
+        const lean = (Math.random() - 0.5) * 110;
+        const top = 10 + Math.random() * 150;
+        const grad = g.createLinearGradient(0, 256, 0, top);
+        const dry = Math.random() < 0.22;
+        const v = 140 + Math.random() * 80;
+        grad.addColorStop(0, `rgb(${v * 0.5},${v * 0.56},${v * 0.4})`);
+        grad.addColorStop(0.55, dry ? `rgb(${v * 0.95},${v * 0.86},${v * 0.6})` : `rgb(${v * 0.78},${v * 0.86},${v * 0.62})`);
+        grad.addColorStop(1, dry ? `rgb(${v * 1.1},${v},${v * 0.72})` : `rgb(${v * 0.95},${v},${v * 0.78})`);
         g.strokeStyle = grad;
-        g.lineWidth = 2.5 + Math.random() * 3;
+        g.lineWidth = 1.4 + Math.random() * 2.4;
         g.lineCap = 'round';
         g.beginPath();
-        g.moveTo(x0, 128);
-        g.quadraticCurveTo(x0 + lean * 0.3, 128 - (128 - top) * 0.6, x0 + lean, top);
+        g.moveTo(x0, 256);
+        g.quadraticCurveTo(x0 + lean * 0.3, 256 - (256 - top) * 0.6, x0 + lean, top);
         g.stroke();
       }
     });
@@ -282,8 +284,19 @@ export class World {
     const geo = mergeGeometries([quad(), quad().rotateY(Math.PI / 3), quad().rotateY((2 * Math.PI) / 3)])!;
     const n = geo.attributes.normal;
     for (let i = 0; i < n.count; i++) n.setXYZ(i, 0, 1, 0);
-    const mat = new THREE.MeshStandardMaterial({ map, color: cfg.color, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1 });
-    const mesh = new THREE.InstancedMesh(geo, mat, Math.round(7000 * gfx.grass));
+    const base = new THREE.Color(cfg.color);
+    const hsl = { h: 0, s: 0, l: 0 };
+    base.getHSL(hsl);
+    base.setHSL(hsl.h, hsl.s * 0.7, Math.min(0.75, hsl.l * 1.3));
+    const mat = new THREE.MeshStandardMaterial({ map, color: base, alphaTest: 0.4, side: THREE.DoubleSide, roughness: 1 });
+    const mesh = new THREE.InstancedMesh(geo, mat, Math.round(9000 * gfx.grass));
+    const tint = new THREE.Color();
+    for (let i = 0; i < mesh.count; i++) {
+      const k = (Math.sin(i * 12.9898) * 43758.5453) % 1;
+      const a = Math.abs(k);
+      tint.setRGB(0.86 + a * 0.3, 0.88 + a * 0.26, 0.74 + a * 0.26);
+      mesh.setColorAt(i, tint);
+    }
     mesh.frustumCulled = false;
     mesh.receiveShadow = true;
     mesh.userData.noCast = true;
@@ -319,7 +332,7 @@ export class World {
         const h = this.heightAt(x, z);
         const [b, c] = this.mixAt(x, z, h);
         if (b > 0.45 || c > 0.45) continue;
-        const size = g.cfg.size * (0.6 + r2 * 0.9) * (1 - smooth(R * 0.7, R, d));
+        const size = g.cfg.size * (0.5 + r2 * 0.75) * (1 - smooth(R * 0.7, R, d));
         q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, r1 * 40);
         m.compose(v.set(x, h - 0.03, z), q, sc.set(size * 1.3, size, size * 1.3));
         g.mesh.setMatrixAt(n++, m);
@@ -728,7 +741,7 @@ export class World {
         trunk.setMatrixAt(i, m);
         leaves.setMatrixAt(i, m);
         if (kind === 'pine') col.copy(base).multiplyScalar(0.62).offsetHSL(0.03 + (r() - 0.5) * 0.03, -0.08, (r() - 0.5) * 0.05);
-        else if (r() < autumn) col.setHSL(0.04 + r() * 0.09, 0.62, 0.36 + r() * 0.12);
+        else if (r() < autumn) col.setHSL(0.05 + r() * 0.08, 0.45, 0.3 + r() * 0.1);
         else col.copy(base).offsetHSL((r() - 0.5) * 0.06, 0, (r() - 0.5) * 0.1);
         leaves.setColorAt(i, col);
         this.addBox(t.x, y, t.z, 1.6 * t.s, 8.6 * t.s, 1.6 * t.s);
@@ -768,14 +781,19 @@ export class World {
     const lr = rng(91);
     const leafTrunk = new THREE.CylinderGeometry(0.14, 0.36, 5, 7).translate(0, 2.5, 0);
     const crown: THREE.BufferGeometry[] = [];
-    const centre = V(0, 5.3, 0);
-    for (let i = 0; i < 9; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      const rr = i === 8 ? 0 : 1.5 + lr() * 0.7;
-      const c = V(Math.cos(a) * rr, i === 8 ? 6.7 : 4.8 + lr() * 1.3, Math.sin(a) * rr);
-      const R = 1.5 + lr() * 0.7;
+    const centre = V(0, 5.6, 0);
+    // Limbs reaching out to the clumps.
+    const limbs: THREE.Vector3[] = [];
+    for (let i = 0; i < 14; i++) {
+      const a = lr() * Math.PI * 2;
+      const up = lr();
+      const rr = (1 - up * 0.55) * (1.2 + lr() * 1.7);
+      limbs.push(V(Math.cos(a) * rr * 1.1, 4.3 + up * 3.1, Math.sin(a) * rr));
+    }
+    for (const c of limbs) {
+      const R = 1.0 + lr() * 0.75;
       // Core that stops the sky showing through.
-      const core = new THREE.IcosahedronGeometry(R * 0.58, 1).toNonIndexed();
+      const core = new THREE.IcosahedronGeometry(R * 0.42, 1).toNonIndexed();
       core.translate(c.x, c.y, c.z);
       const cp = core.attributes.position;
       const cn = core.attributes.normal;
@@ -786,18 +804,18 @@ export class World {
         cn.setXYZ(k, tmp.x, tmp.y, tmp.z);
         cuv.setXY(k, 0.5, 0.5);
       }
-      core.setAttribute('color', new THREE.BufferAttribute(new Float32Array(cp.count * 3).fill(0.42), 3));
+      core.setAttribute('color', new THREE.BufferAttribute(new Float32Array(cp.count * 3).fill(0.34), 3));
       core.setIndex(Array.from({ length: cp.count }, (_, k) => k));
       crown.push(core);
-      for (let k = 0; k < 12; k++) {
-        const d = V(lr() - 0.5, lr() * 0.9 - 0.25, lr() - 0.5).normalize();
-        const pos = c.clone().addScaledVector(d, R * 0.82);
+      for (let k = 0; k < 13; k++) {
+        const d = V(lr() - 0.5, lr() * 0.9 - 0.3, lr() - 0.5).normalize();
+        const pos = c.clone().addScaledVector(d, R * (0.45 + lr() * 0.6));
         const face = d.clone().add(V((lr() - 0.5) * 0.9, (lr() - 0.5) * 0.9, (lr() - 0.5) * 0.9)).normalize();
         const xf = new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(V(0, 0, 1), face).multiply(new THREE.Quaternion().setFromAxisAngle(V(0, 0, 1), lr() * 6.283)));
         xf.setPosition(pos);
         const nor = pos.clone().sub(centre).normalize().addScaledVector(UP, 0.4).normalize();
-        const shade = 0.58 + 0.42 * Math.max(0, Math.min(1, (pos.y - 3.6) / 3.6));
-        const sz = 2.3 + lr() * 1.1;
+        const shade = (0.5 + 0.5 * Math.max(0, Math.min(1, (pos.y - 3.6) / 4))) * (0.85 + lr() * 0.25);
+        const sz = 1.6 + lr() * 1.0;
         crown.push(card(sz, sz, xf, nor, shade));
       }
     }

@@ -80,13 +80,21 @@ export class FireMission extends Mission {
 
     // Forest everywhere that is not village, lake or pad.
     const spots: { x: number; z: number; s: number }[] = [];
-    while (spots.length < 520) {
+    while (spots.length < 900) {
       const x = (r() - 0.5) * 620;
       const z = (r() - 0.5) * 620;
       if (Math.hypot(x, z) < 60 || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r * 1.55 || Math.hypot(x - 95, z - 105) < 20) continue;
       spots.push({ x, z, s: 0.8 + r() * 0.9 });
     }
     w.pines(spots, 0x5d8040, 0.5, 0.4);
+    const stones: { x: number; z: number; s: number }[] = [];
+    while (stones.length < 160) {
+      const x = (r() - 0.5) * 600;
+      const z = (r() - 0.5) * 600;
+      if (Math.hypot(x, z) < 55 || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r * 1.2 || Math.hypot(x - 95, z - 105) < 18) continue;
+      stones.push({ x, z, s: 0.5 + r() * r() * 2.4 });
+    }
+    w.rocks(stones, 0xb0b2a6, 'mossy_rock');
 
     // Fire sites: three houses and three forest patches burn at the start,
     // three more can catch later.

@@ -290,7 +290,7 @@ export class CanyonMission extends Mission {
       if (h < 1.8 || h > 6 || slope(x, z) > 0.5 || nearFall(x, z)) continue;
       trees.push({ x, z, s: 0.55 + r() * 0.6 });
     }
-    w.pines(trees, 0x587438, 0.45, 0.3);
+    w.pines(trees, 0x587438, 0.4, 0.15);
 
     // ---- boulders in the river and on the banks, outcrops on the plateau
     const rocks: { x: number; z: number; s: number }[] = [];

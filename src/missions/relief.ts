@@ -120,7 +120,7 @@ export class ReliefMission extends Mission {
 
     // Trees on whatever land is still above the water.
     const spots: { x: number; z: number; s: number }[] = [];
-    for (let i = 0; i < 1400 && spots.length < 150; i++) {
+    for (let i = 0; i < 4000 && spots.length < 380; i++) {
       const x = (r() - 0.5) * 640;
       const z = (r() - 0.5) * 640;
       if (w.heightAt(x, z) < WATER_Y + 0.6 || Math.hypot(x - DEPOT.x, z - DEPOT.z) < 18) continue;

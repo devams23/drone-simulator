@@ -50,6 +50,11 @@ const LensShader = {
         for (int i = 1; i < 6; i++) c += texture2D(tDiffuse, vUv - d * k * float(i) / 5.0).rgb;
         c /= 6.0;
       }
+      // Grade: pull saturation back, gentle filmic contrast, cool shadows / warm highlights.
+      float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+      c = mix(vec3(l), c, 0.86);
+      c = mix(c, c * c * (3.0 - 2.0 * c), 0.22);
+      c += vec3(-0.008, 0.0, 0.012) * (1.0 - smoothstep(0.0, 0.5, l)) + vec3(0.012, 0.006, -0.01) * smoothstep(0.5, 1.0, l);
       c *= 1.0 - 0.3 * smoothstep(0.38, 0.98, r);
       float n = fract(sin(dot(gl_FragCoord.xy + uTime * 61.0, vec2(12.9898, 78.233))) * 43758.5453);
       c += (n - 0.5) * 0.014;
@@ -153,8 +158,15 @@ export class Game {
     this.composer?.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    this.fx.glow.setScale(h, FOV);
-    this.fx.smoke.setScale(h, FOV);
+    this.setFov(this.camera.fov);
+  }
+
+  private setFov(fov: number) {
+    this.camera.fov = fov;
+    this.camera.updateProjectionMatrix();
+    const h = window.innerHeight;
+    this.fx.glow.setScale(h, fov);
+    this.fx.smoke.setScale(h, fov);
   }
 
   /** Build a mission's world and show it with an orbiting camera. */
@@ -252,6 +264,13 @@ export class Game {
       m.ambient(dt, this.camera.position);
       this.fx.update(dt);
       m.world.follow(this.camera.position);
+    }
+    {
+      // Field of view opens up with speed: the rush of a low pass.
+      const d = this.drone;
+      const sp = this.mode === 'fly' && d ? d.vel.length() / d.ph.maxSpeed : 0;
+      const want = FOV + 14 * Math.max(0, Math.min(1, (sp - 0.2) / 0.8)) ** 1.3;
+      if (Math.abs(want - this.camera.fov) > 0.05) this.setFov(this.camera.fov + (want - this.camera.fov) * Math.min(1, dt * 3));
     }
     if (this.composer && this.lens) {
       const d = this.drone;

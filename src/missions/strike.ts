@@ -93,11 +93,11 @@ export class StrikeMission extends Mission {
       this.blockers.push(w.mesa(x, z, rad, h, 0xe6a57a));
     }
     const rocks: { x: number; z: number; s: number }[] = [];
-    for (let i = 0; i < 160; i++) {
+    for (let i = 0; i < 420; i++) {
       const x = (r() - 0.5) * 640;
       const z = (r() - 0.5) * 640;
       if (Math.hypot(x - C.x, z - C.z) < 50 || Math.hypot(x, z - 175) < 12) continue;
-      rocks.push({ x, z, s: 0.6 + r() * 2.2 });
+      rocks.push({ x, z, s: 0.5 + r() * r() * 3.4 });
     }
     w.rocks(rocks, 0xe0b898, 'sandstone_cracks');
 
