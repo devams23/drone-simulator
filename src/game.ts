@@ -76,6 +76,8 @@ export class Game {
   drone?: Drone;
   mode: 'idle' | 'orbit' | 'fly' | 'ended' = 'idle';
   paused = false;
+  /** Set while the garage is drawn over the world: skip simulating and rendering it. */
+  halt = false;
   onEnd: (r: Result) => void = () => {};
 
   private missionId?: MissionId;
@@ -240,6 +242,7 @@ export class Game {
   private frame(ms: number) {
     const dt = Math.min(0.05, (ms - this.last) / 1000 || 0.016);
     this.last = ms;
+    if (this.halt) return;
     const m = this.mission;
     if (m && !this.paused) {
       this.time += dt;

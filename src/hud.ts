@@ -12,7 +12,7 @@ const TAU = Math.PI * 2;
 const LINE = 'rgba(255,255,255,0.92)';
 const SOFT = 'rgba(255,255,255,0.55)';
 const SHADOW = 'rgba(0,12,24,0.55)';
-const FONT = '"Chakra Petch", "Segoe UI", sans-serif';
+const FONT = '"Barlow Condensed", "Arial Narrow", sans-serif';
 const CARD = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 
 /** A 2D canvas that keeps itself sized to its CSS box at device resolution. */
@@ -329,7 +329,7 @@ export class Hud {
       if (major) {
         const card = n % 45 === 0 ? CARD[n / 45] : '';
         g.font = card ? `700 13px ${FONT}` : `500 10px ${FONT}`;
-        g.fillStyle = card === 'N' ? '#ffc531' : LINE;
+        g.fillStyle = card === 'N' ? '#5ef0c4' : LINE;
         g.fillText(card || String(n), x, top + 12);
       }
     }
@@ -470,14 +470,14 @@ export class Hud {
     }
     // Bank pointer.
     const bt = -Math.PI / 2 - d.roll;
-    g.fillStyle = '#ffc531';
+    g.fillStyle = '#5ef0c4';
     g.beginPath();
     g.moveTo(c + Math.cos(bt) * (R - 2), c + Math.sin(bt) * (R - 2));
     g.lineTo(c + Math.cos(bt - 0.08) * (R - 11), c + Math.sin(bt - 0.08) * (R - 11));
     g.lineTo(c + Math.cos(bt + 0.08) * (R - 11), c + Math.sin(bt + 0.08) * (R - 11));
     g.fill();
     // Fixed aircraft symbol.
-    g.strokeStyle = '#ffc531';
+    g.strokeStyle = '#5ef0c4';
     g.lineWidth = 2.4;
     g.lineCap = 'round';
     g.beginPath();
@@ -487,7 +487,7 @@ export class Hud {
     g.lineTo(c + R * 0.16, c);
     g.lineTo(c + R * 0.5, c);
     g.stroke();
-    g.fillStyle = '#ffc531';
+    g.fillStyle = '#5ef0c4';
     g.beginPath();
     g.arc(c, c, 2.2, 0, TAU);
     g.fill();
@@ -656,7 +656,7 @@ export class Hud {
     g.arc(c, c, R, -Math.PI / 2 - 0.62, -Math.PI / 2 + 0.62);
     g.fill();
     // North marker rotates with heading.
-    g.fillStyle = '#ffc531';
+    g.fillStyle = '#5ef0c4';
     g.font = `700 11px ${FONT}`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';
