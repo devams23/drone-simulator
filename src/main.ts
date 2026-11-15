@@ -256,6 +256,7 @@ function brief() {
       </div>
       <div class="row">
         <button class="btn ghost" data-act="hangar">Back</button>
+        <button class="btn ghost" data-act="free">Free flight</button>
         <button class="btn big" data-act="launch" autofocus>Take off</button>
       </div>
     </section>`,
@@ -273,7 +274,7 @@ function pause() {
         <div class="quality"><span>Graphics</span>${(['low', 'medium', 'high'] as Quality[]).map((q) => `<button class="pick ${game.quality === q ? 'on' : ''}" data-act="quality" data-id="${q}">${q}</button>`).join('')}</div>
         <div class="row">
           <button class="btn" data-act="resume" autofocus>Resume</button>
-          <button class="btn ghost" data-act="launch">Restart</button>
+          <button class="btn ghost" data-act="${game.free ? 'free' : 'launch'}">Restart</button>
           <button class="btn ghost" data-act="quit">Quit</button>
         </div>
       </div>
@@ -306,7 +307,8 @@ function debrief(r: Result) {
   );
 }
 
-function launch() {
+function launch(free = false) {
+  game.free = free;
   game.sound.init();
   hudEl.style.setProperty('--hue', mission.hue);
   show('none');
@@ -375,6 +377,9 @@ ui.addEventListener('click', (e) => {
     case 'launch':
       launch();
       break;
+    case 'free':
+      launch(true);
+      break;
     case 'resume':
       resume();
       break;
@@ -422,7 +427,7 @@ function boot() {
     mission = auto;
     drone = DRONES.find((d) => d.id === qs.get('drone') && d.mission === auto.id) ?? DRONES.filter((d) => d.mission === auto.id)[1];
     game.loadMission(auto.id);
-    launch();
+    launch(qs.get('free') === '1');
     const air = Number(qs.get('air'));
     const d = game.drone;
     if (air > 0 && d) {
