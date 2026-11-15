@@ -53,7 +53,9 @@ const LensShader = {
       // Grade: pull saturation back, gentle filmic contrast, cool shadows / warm highlights.
       float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
       c = mix(vec3(l), c, 0.86);
-      c = mix(c, c * c * (3.0 - 2.0 * c), 0.22);
+      // Contrast curve on the 0..1 part only: HDR highlights (> 1.5) would go negative.
+      vec3 cc = clamp(c, 0.0, 1.0);
+      c += (cc * cc * (3.0 - 2.0 * cc) - cc) * 0.22;
       c += vec3(-0.008, 0.0, 0.012) * (1.0 - smoothstep(0.0, 0.5, l)) + vec3(0.012, 0.006, -0.01) * smoothstep(0.5, 1.0, l);
       c *= 1.0 - 0.3 * smoothstep(0.38, 0.98, r);
       float n = fract(sin(dot(gl_FragCoord.xy + uTime * 61.0, vec2(12.9898, 78.233))) * 43758.5453);

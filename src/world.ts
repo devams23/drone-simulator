@@ -582,7 +582,7 @@ export class World {
   /** Concrete landing pad with painted markings. */
   pad(x: number, z: number, color = '#ffd23f') {
     const map = canvasTex(512, 512, (g) => {
-      g.fillStyle = '#8b8d8c';
+      g.fillStyle = '#5d605f';
       g.fillRect(0, 0, 512, 512);
       for (let i = 0; i < 2600; i++) {
         g.fillStyle = `rgba(${Math.random() < 0.5 ? '0,0,0' : '255,255,255'},${Math.random() * 0.07})`;
@@ -593,13 +593,13 @@ export class World {
       g.beginPath();
       g.arc(256, 256, 206, 0, Math.PI * 2);
       g.stroke();
-      g.strokeStyle = '#f2f2ee';
+      g.strokeStyle = 'rgba(214,216,210,0.75)';
       g.lineWidth = 6;
       g.beginPath();
       g.arc(256, 256, 236, 0, Math.PI * 2);
       g.stroke();
-      g.fillStyle = '#f2f2ee';
-      g.font = 'bold 290px sans-serif';
+      g.fillStyle = 'rgba(214,216,210,0.7)';
+      g.font = 'bold 210px sans-serif';
       g.textAlign = 'center';
       g.textBaseline = 'middle';
       g.fillText('H', 256, 272);
