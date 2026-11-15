@@ -12,7 +12,7 @@ const hudEl = document.getElementById('hud')!;
 const game = new Game(canvas);
 let garage: Garage | undefined;
 
-type Screen = 'loading' | 'title' | 'missions' | 'roam' | 'settings' | 'hangar' | 'brief' | 'pause' | 'debrief' | 'none';
+type Screen = 'loading' | 'intro' | 'title' | 'missions' | 'roam' | 'settings' | 'hangar' | 'brief' | 'pause' | 'debrief' | 'none';
 let screen: Screen = 'none';
 let mission: MissionCard = MISSIONS[0];
 let drone: DroneSpec = DRONES[0];
@@ -21,8 +21,8 @@ let roam = false;
 let place: Place | undefined;
 let lastResult: Result | undefined;
 
-const ACCENT = '#5ef0c4';
-const SHOTS: Partial<Record<Screen, Shot>> = { title: 'title', settings: 'title', missions: 'missions', roam: 'roam', hangar: 'hangar', brief: 'brief' };
+const ACCENT = '#7cc9c0';
+const SHOTS: Partial<Record<Screen, Shot>> = { intro: 'intro', title: 'title', settings: 'title', missions: 'missions', roam: 'roam', hangar: 'hangar', brief: 'brief' };
 
 interface Place {
   id: WorldId;
@@ -73,30 +73,45 @@ function show(next: Screen, html = '', dim = false) {
   (ui.querySelector('[autofocus]') as HTMLElement | null)?.focus();
 }
 
+function intro() {
+  garage?.setAccent(ACCENT);
+  show(
+    'intro',
+    `<section class="screen intro">
+      <div class="fade"></div>
+      <div class="mark">
+        <h1>SKYDUTY</h1>
+        <div class="rule"></div>
+        <p>First-person drone flight</p>
+      </div>
+      <button class="enter" data-act="title" autofocus>Press any key to enter</button>
+      <footer class="intro-foot"><span>Headphones recommended</span><span>Keyboard · Mouse · Gamepad</span></footer>
+    </section>`,
+  );
+}
+
 function title() {
   garage?.setAccent(ACCENT);
   show(
     'title',
-    `<section class="screen title">
-      ${top(['Hangar'])}
-      <div class="hero">
-        <div>
-          <div class="eyebrow"><i></i>FPV flight simulator</div>
-          <h1 class="wordmark">SKYDUTY</h1>
-          <p class="lede">Purpose-built drones for fire, strike and relief work, and open country to fly for the view alone.</p>
-        </div>
-        <nav class="menu">
-          <button data-act="missions" autofocus><span class="n">01</span><span class="t">Operations<small>Three missions · nine airframes</small></span><span class="go">→</span></button>
-          <button data-act="roam"><span class="n">02</span><span class="t">Free roam<small>No objectives, no clock. Just fly.</small></span><span class="go">→</span></button>
-          <button data-act="settings"><span class="n">03</span><span class="t">Settings<small>Graphics and controls</small></span><span class="go">→</span></button>
-        </nav>
-      </div>
+    `<section class="screen home">
+      ${top(['Main menu'])}
+      <nav class="menu">
+        <button data-act="missions" autofocus><span class="t">Operations</span><small>Fire, strike and relief missions</small></button>
+        <button data-act="roam"><span class="t">Free roam</span><small>No objectives, no clock</small></button>
+        <button data-act="settings"><span class="t">Settings</span><small>Graphics and controls</small></button>
+      </nav>
       <footer class="status">
-        <span><i class="dot"></i>On the pad · <b>${drone.name}</b> · systems nominal</span>
-        <span>Keyboard + mouse · Gamepad · Headphones recommended</span>
+        <span><i class="dot"></i>On the pad · <b>${drone.name}</b></span>
+        <span>Esc back · Enter select</span>
       </footer>
     </section>`,
   );
+}
+
+function rail(head: string, sub: string, cards: string) {
+  return `<div class="pick-head"><h2 class="h">${head}</h2><p class="sub">${sub}</p></div>
+    <div class="rail">${cards}</div>`;
 }
 
 function missions() {
@@ -104,22 +119,21 @@ function missions() {
   garage?.setAccent(mission.hue);
   show(
     'missions',
-    `<section class="screen">
+    `<section class="screen pick">
       ${top(['Operations'])}
-      <div class="pane">
-        <h2 class="h">Select operation</h2>
-        <p class="sub">Each operation has its own terrain, its own tool and its own fleet of three airframes.</p>
-        <div class="ops">
-          ${MISSIONS.map(
-            (m, i) => `<button class="op" style="--hue:${m.hue}" data-act="pick-mission" data-id="${m.id}" data-hue="${m.hue}" ${m.id === mission.id ? 'autofocus' : ''}>
-              <span class="n">${pad2(i + 1)}</span>
-              <span><span class="role">${m.role}</span><b>${m.name}</b><span class="blurb">${m.blurb}</span><span class="goal">OBJ · ${m.objective}</span></span>
-              <span class="side">Best${rating(best[m.id] ?? 0)}</span>
-            </button>`,
-          ).join('')}
-        </div>
-      </div>
-      <div class="actions"><button class="btn" data-act="title" data-back>Back <span class="key">ESC</span></button></div>
+      ${rail(
+        'Operations',
+        'Each one has its own terrain, tool and fleet.',
+        MISSIONS.map(
+          (m) => `<button class="card" style="--hue:${m.hue}" data-act="pick-mission" data-id="${m.id}" data-hue="${m.hue}" ${m.id === mission.id ? 'autofocus' : ''}>
+            <span class="role">${m.role}</span>
+            <b>${m.name}</b>
+            <span class="blurb">${m.blurb}</span>
+            <span class="foot"><span>${m.objective}</span>${rating(best[m.id] ?? 0)}</span>
+          </button>`,
+        ).join(''),
+      )}
+      <div class="actions"><button class="btn" data-act="title" data-back>Back <span class="key">ESC</span></button><span class="grow"></span><span class="hint">← → browse · Enter select</span></div>
     </section>`,
   );
 }
@@ -129,22 +143,20 @@ function roamScreen() {
   garage?.setAccent(ACCENT);
   show(
     'roam',
-    `<section class="screen">
+    `<section class="screen pick">
       ${top(['Free roam'])}
-      <div class="pane">
-        <h2 class="h">Choose a location</h2>
-        <p class="sub">Unlimited battery, no objectives. Crash and you are back on the pad in seconds.</p>
-        <div class="ops">
-          ${PLACES.map(
-            (p, i) => `<button class="op" data-act="pick-place" data-id="${p.id}" ${i === 0 ? 'autofocus' : ''}>
-              <span class="n">${pad2(i + 1)}</span>
-              <span><span class="role">${p.terrain}</span><b>${p.name}</b><span class="blurb">${p.blurb}</span></span>
-              <span class="side"></span>
-            </button>`,
-          ).join('')}
-        </div>
-      </div>
-      <div class="actions"><button class="btn" data-act="title" data-back>Back <span class="key">ESC</span></button></div>
+      ${rail(
+        'Free roam',
+        'Unlimited battery, no objectives. Just fly.',
+        PLACES.map(
+          (p, i) => `<button class="card" style="--hue:${ACCENT}" data-act="pick-place" data-id="${p.id}" ${i === 0 ? 'autofocus' : ''}>
+            <span class="role">${p.terrain}</span>
+            <b>${p.name}</b>
+            <span class="blurb">${p.blurb}</span>
+          </button>`,
+        ).join(''),
+      )}
+      <div class="actions"><button class="btn" data-act="title" data-back>Back <span class="key">ESC</span></button><span class="grow"></span><span class="hint">← → browse · Enter select</span></div>
     </section>`,
   );
 }
@@ -188,7 +200,7 @@ function hangar() {
         <aside class="panel spec">
           <h3 class="label">Flight profile</h3>
           ${STAT_LABELS.map(
-            ([k, label]) => `<div class="stat"><span>${label}</span><span class="segs">${Array.from({ length: 10 }, (_, i) => `<i class="${i < drone.stats[k] ? 'on' : ''}"></i>`).join('')}</span><b>${drone.stats[k]}</b></div>`,
+            ([k, label]) => `<div class="stat"><span>${label}</span><span class="meter"><i style="width:${drone.stats[k] * 10}%"></i></span><b>${drone.stats[k]}</b></div>`,
           ).join('')}
           <div class="facts">
             <div><b>${Math.round(ph.maxSpeed * 3.6)}</b>Top km/h</div>
@@ -251,7 +263,7 @@ function brief() {
     `<section class="screen" style="--hue:${hue}">
       ${top(roam ? ['Free roam', where, 'Pre-flight'] : ['Operations', where, 'Briefing'])}
       <div class="brief">
-        <div class="intro">
+        <div class="lede">
           <div class="label">${roam ? 'Free roam' : mission.role} · ${drone.name}</div>
           <h2 class="h">${where}</h2>
           <p class="sub">${roam ? place!.blurb : mission.blurb}</p>
@@ -392,6 +404,11 @@ function openWorld(id: WorldId) {
 
 // ------------------------------------------------------------------- events
 ui.addEventListener('click', (e) => {
+  if (screen === 'intro') {
+    game.sound.init();
+    title();
+    return;
+  }
   const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');
   if (!el) return;
   game.sound.init();
@@ -469,13 +486,43 @@ ui.addEventListener('click', (e) => {
   }
 });
 
-// Hovering an operation tints the garage pad in that operation's colour.
-ui.addEventListener('pointerover', (e) => {
+// Hovering or focusing an operation tints the garage pad in that operation's colour.
+const tint = (e: Event) => {
   const hue = (e.target as HTMLElement).closest<HTMLElement>('[data-hue]')?.dataset.hue;
   if (hue) garage?.setAccent(hue);
-});
+};
+ui.addEventListener('pointerover', tint);
+ui.addEventListener('focusin', tint);
+
+// The card rail scrolls sideways with the mouse wheel.
+ui.addEventListener(
+  'wheel',
+  (e) => {
+    const rail = (e.target as HTMLElement).closest<HTMLElement>('.rail');
+    if (!rail || rail.scrollWidth <= rail.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+    e.preventDefault();
+    rail.scrollBy({ left: e.deltaY, behavior: 'smooth' });
+  },
+  { passive: false },
+);
 
 window.addEventListener('keydown', (e) => {
+  if (screen === 'intro' && e.code !== 'Escape') {
+    e.preventDefault();
+    title();
+    return;
+  }
+  if (e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+    const list = [...ui.querySelectorAll<HTMLElement>('.card, .menu button, .unit')];
+    if (list.length) {
+      const i = list.indexOf(document.activeElement as HTMLElement);
+      const step = e.code === 'ArrowLeft' || e.code === 'ArrowUp' ? -1 : 1;
+      const next = list[Math.max(0, Math.min(list.length - 1, i < 0 ? 0 : i + step))];
+      next.focus();
+      next.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+      e.preventDefault();
+    }
+  }
   if (e.code === 'KeyM') game.sound.toggleMute();
   if (e.code === 'Escape' || e.code === 'KeyP') {
     if (screen === 'pause') resume();
@@ -502,7 +549,7 @@ function boot() {
   document.body.insertBefore(garage.canvas, ui);
   garage.setDrone(drone);
   game.loadMission('fire');
-  title();
+  intro();
 
   // Dev shortcuts: ?fly=strike (optionally &drone=mauler&air=30) jumps straight
   // into a flight; ?hangar=fire opens the hangar; ?screen=roam opens a menu.
@@ -517,7 +564,7 @@ function boot() {
     roam = true;
     place = PLACES.find((p) => p.id === (qs.get('hangar') ?? qs.get('fly'))) ?? PLACES[0];
   }
-  const screens: Record<string, () => void> = { missions, roam: roamScreen, settings, brief };
+  const screens: Record<string, () => void> = { title, missions, roam: roamScreen, settings, brief };
   if (hangId) {
     drone = pick(hangId);
     openWorld(hangId);
@@ -547,9 +594,8 @@ function boot() {
 show(
   'loading',
   `<section class="screen loading">
-    <div>
-      <div class="eyebrow"><i></i>FPV flight simulator</div>
-      <h1 class="wordmark">SKYDUTY</h1>
+    <div class="intro">
+      <div class="mark" style="animation:none;margin:0"><h1>SKYDUTY</h1></div>
       <div class="loadbar"><i id="loadfill"></i></div>
       <div class="loadmeta"><span id="loadtxt">Loading terrain and sky</span><span id="loadpct">0%</span></div>
     </div>

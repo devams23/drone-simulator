@@ -13,7 +13,7 @@ import { tex } from './assets';
 import { buildDrone, type DroneModel } from './models/drone';
 import type { DroneSpec } from './data';
 
-export type Shot = 'title' | 'missions' | 'roam' | 'hangar' | 'brief';
+export type Shot = 'intro' | 'title' | 'missions' | 'roam' | 'hangar' | 'brief';
 
 interface ShotDef {
   /** Camera azimuth around the pad (0 = straight in from the front). */
@@ -25,14 +25,19 @@ interface ShotDef {
   /** Horizontal framing offset as a fraction of the screen width (negative = drone to the right). */
   shift: number;
   drift: number;
+  /** Vertical framing offset as a fraction of the screen height (positive = drone higher). */
+  lift: number;
 }
 const SHOTS: Record<Shot, ShotDef> = {
-  title: { az: 0.62, el: 0.13, dist: 6.2, min: 4.6, shift: -0.2, drift: 0.14 },
-  missions: { az: -0.5, el: 0.24, dist: 5, min: 3.6, shift: -0.23, drift: 0.1 },
-  roam: { az: 0.95, el: 0.2, dist: 5, min: 3.6, shift: -0.23, drift: 0.1 },
-  hangar: { az: 0.32, el: 0.2, dist: 2.75, min: 1.9, shift: 0, drift: 0.04 },
-  brief: { az: -1.25, el: 0.09, dist: 2.6, min: 1.8, shift: 0.24, drift: 0.05 },
+  intro: { az: 0.18, el: 0.07, dist: 4.2, min: 3.0, shift: 0, drift: 0.08, lift: 0.1 },
+  title: { az: 0.62, el: 0.13, dist: 6.2, min: 4.6, shift: -0.2, drift: 0.14, lift: 0 },
+  missions: { az: -0.5, el: 0.2, dist: 3.6, min: 2.6, shift: 0, drift: 0.1, lift: 0.17 },
+  roam: { az: 0.95, el: 0.2, dist: 3.6, min: 2.6, shift: 0, drift: 0.1, lift: 0.17 },
+  hangar: { az: 0.32, el: 0.2, dist: 2.75, min: 1.9, shift: 0, drift: 0.04, lift: 0.04 },
+  brief: { az: -1.25, el: 0.09, dist: 2.6, min: 1.8, shift: 0.24, drift: 0.05, lift: 0 },
 };
+/** Where the opening dolly starts: low and far back in the dark. */
+const OPENING: ShotDef = { az: 1.1, el: 0.03, dist: 6.5, min: 6.5, shift: 0, drift: 0, lift: 0.1 };
 
 const PAD_TOP = 0.1;
 
@@ -56,8 +61,8 @@ export class Garage {
   private model?: DroneModel;
   private radius = 0.6;
   private height = 0.3;
-  private shot: ShotDef = { ...SHOTS.title };
-  private want: ShotDef = SHOTS.title;
+  private shot: ShotDef = { ...OPENING };
+  private want: ShotDef = SHOTS.intro;
   private spinDrone = false;
   private accentMats: (THREE.MeshBasicMaterial | THREE.PointLight)[] = [];
   private dust: THREE.Points;
@@ -132,10 +137,7 @@ export class Garage {
       m.receiveShadow = true;
       s.add(m);
     };
-    line(8, 0.07, 0, -4);
-    line(8, 0.07, 0, 4);
-    line(0.07, 8, -4, 0);
-    line(0.07, 8, 4, 0);
+    void line;
     const hazard = canvasTex(1024, 64, (g) => {
       g.fillStyle = '#1a1a1a';
       g.fillRect(0, 0, 1024, 64);
@@ -153,7 +155,7 @@ export class Garage {
     strip.rotation.x = -Math.PI / 2;
     strip.position.set(0, 0.009, -6.4);
     strip.receiveShadow = true;
-    s.add(strip);
+    void strip;
 
     // Walls of brushed metal panels.
     const wt = tex('concrete_wall_004');
@@ -559,7 +561,7 @@ export class Garage {
     const c = new THREE.Color(hex);
     for (const m of this.accentMats) {
       if (m instanceof THREE.PointLight) m.color.copy(c);
-      else m.color.copy(c).multiplyScalar(m.map ? 0.85 : 1.8);
+      else m.color.copy(c).multiplyScalar(m.map ? 0.55 : 1.0);
     }
   }
 
@@ -594,7 +596,7 @@ export class Garage {
     }
 
     // Glide toward the wanted framing.
-    const k = 1 - Math.exp(-dt * 2.4);
+    const k = 1 - Math.exp(-dt * (this.want === SHOTS.intro ? 0.7 : 2.4));
     const s = this.shot;
     const want = this.want;
     for (const key of Object.keys(s) as (keyof ShotDef)[]) s[key] += (want[key] - s[key]) * k;
@@ -605,7 +607,7 @@ export class Garage {
     const ty = PAD_TOP + this.height * 0.4;
     this.cam.position.set(Math.sin(az) * Math.cos(el) * dist, ty + Math.sin(el) * dist, Math.cos(az) * Math.cos(el) * dist);
     this.cam.lookAt(0, ty, 0);
-    this.cam.setViewOffset(w, h, narrow ? 0 : s.shift * w, 0, w, h);
+    this.cam.setViewOffset(w, h, narrow ? 0 : s.shift * w, s.lift * h, w, h);
     this.cam.updateProjectionMatrix();
 
     if (this.model) {

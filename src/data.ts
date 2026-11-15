@@ -123,7 +123,7 @@ export interface MissionCard {
 
 export const MISSIONS: MissionCard[] = [
   {
-    id: 'fire', name: 'Wildfire Response', role: 'Firefighter', icon: '🔥', hue: '#ff7a2f',
+    id: 'fire', name: 'Wildfire Response', role: 'Firefighter', icon: '🔥', hue: '#e8915a',
     blurb: 'Fire is closing on Pinebrook village. Carry water and put it out.',
     objective: 'Extinguish every fire.',
     fail: 'The village damage meter fills, or you lose the drone.',
@@ -135,7 +135,7 @@ export const MISSIONS: MissionCard[] = [
     ],
   },
   {
-    id: 'strike', name: 'Outpost Strike', role: 'Gunship', icon: '🎯', hue: '#ff4d4d',
+    id: 'strike', name: 'Outpost Strike', role: 'Gunship', icon: '🎯', hue: '#d9675f',
     blurb: 'A hostile outpost in the Red Mesa must be taken off the map.',
     objective: 'Destroy the HQ, the radar and both fuel tanks.',
     fail: 'The drone is shot down or the battery dies.',
@@ -147,7 +147,7 @@ export const MISSIONS: MissionCard[] = [
     ],
   },
   {
-    id: 'relief', name: 'Flood Relief', role: 'Cargo', icon: '📦', hue: '#35c2ff',
+    id: 'relief', name: 'Flood Relief', role: 'Cargo', icon: '📦', hue: '#5fa8d8',
     blurb: 'The river took the town. Families are stranded on rooftops.',
     objective: 'Drop a supply crate on every marked rooftop.',
     fail: 'Time runs out, or you lose the drone.',
