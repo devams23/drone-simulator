@@ -2,8 +2,9 @@
 import * as THREE from 'three';
 import './style.css';
 import { DRONES, MISSIONS, STAT_LABELS, physics, type DroneSpec, type MissionCard, type MissionId } from './data';
-import { buildDroneModel } from './drone';
-import { Game, type Result } from './game';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { Game, type Quality, type Result } from './game';
+import { buildDrone, type DroneModel } from './models/drone';
 import type { Scheme } from './input';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
@@ -32,20 +33,48 @@ const preview = (() => {
   const cv = document.createElement('canvas');
   const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMapping = THREE.NeutralToneMapping;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   const scene = new THREE.Scene();
-  const cam = new THREE.PerspectiveCamera(32, 1, 0.1, 50);
-  cam.position.set(0, 1.25, 3.4);
-  cam.lookAt(0, 0, 0);
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x9fc4e8, 2.2));
-  const key = new THREE.DirectionalLight(0xfff4d6, 3.2);
-  key.position.set(2, 4, 3);
-  scene.add(key);
-  const disc = new THREE.Mesh(new THREE.CircleGeometry(1.25, 48), new THREE.MeshBasicMaterial({ color: 0x0d2440, transparent: true, opacity: 0.12 }));
-  disc.rotation.x = -Math.PI / 2;
-  disc.position.y = -0.42;
-  scene.add(disc);
-  let model: THREE.Group | undefined;
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.03).texture;
+  scene.environmentIntensity = 0.9;
+  const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
+  const key = new THREE.DirectionalLight(0xfff2dc, 3.4);
+  key.position.set(2.2, 4.5, 2.6);
+  key.castShadow = true;
+  key.shadow.mapSize.setScalar(2048);
+  const sc = key.shadow.camera;
+  sc.left = sc.bottom = -2;
+  sc.right = sc.top = 2;
+  sc.near = 1;
+  sc.far = 12;
+  key.shadow.bias = -0.0004;
+  key.shadow.normalBias = 0.01;
+  const rim = new THREE.DirectionalLight(0x9fd0ff, 1.6);
+  rim.position.set(-3, 2, -3);
+  scene.add(key, rim);
+
+  // Turntable: dark satin disc with a bright ring, catching the drone's shadow.
+  const table = new THREE.Group();
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.56, 0.06, 96), new THREE.MeshStandardMaterial({ color: 0x1b222c, roughness: 0.32, metalness: 0.6 }));
+  top.position.y = -0.03;
+  top.receiveShadow = true;
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.42, 0.008, 8, 128), new THREE.MeshBasicMaterial({ color: 0x9fe8ff }));
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = 0.002;
+  table.add(top, ring);
+  for (let i = 0; i < 48; i++) {
+    const tickMark = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.002, i % 4 ? 0.04 : 0.09), new THREE.MeshBasicMaterial({ color: 0x6f8799 }));
+    const a = (i / 48) * Math.PI * 2;
+    tickMark.position.set(Math.cos(a) * 1.33, 0.002, Math.sin(a) * 1.33);
+    tickMark.rotation.y = -a + Math.PI / 2;
+    table.add(tickMark);
+  }
+  scene.add(table);
+
+  let model: DroneModel | undefined;
   let raf = 0;
   let last = 0;
   const tick = (ms: number) => {
@@ -61,21 +90,33 @@ const preview = (() => {
       cam.aspect = w / h;
       cam.updateProjectionMatrix();
     }
-    model.rotation.y += dt * 0.6;
-    model.position.y = Math.sin(ms / 600) * 0.05;
-    for (const s of (model.userData.spinners as THREE.Object3D[] | undefined) ?? []) s.rotation.y += dt * 30;
+    model.group.rotation.y += dt * 0.45;
+    table.rotation.y = model.group.rotation.y;
+    model.props.forEach((p, i) => (p.rotation.y += dt * 2.2 * (i === 0 || i === 3 ? 1 : -1)));
     renderer.render(scene, cam);
   };
   return {
     canvas: cv,
     set(spec: DroneSpec) {
+      const turn = model?.group.rotation.y ?? -0.7;
       if (model) {
-        scene.remove(model);
-        model.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
+        scene.remove(model.group);
+        model.group.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
       }
-      model = buildDroneModel(spec);
-      model.rotation.y = -0.6;
-      scene.add(model);
+      model = buildDrone(spec);
+      model.setSpin(0);
+      model.group.rotation.y = turn;
+      model.group.position.y = -model.foot;
+      scene.add(model.group);
+      const size = new THREE.Box3().setFromObject(model.group).getSize(new THREE.Vector3());
+      const rad = Math.max(size.x, size.z) * 0.5;
+      table.scale.set((rad * 1.08) / 1.5, 1, (rad * 1.08) / 1.5);
+      const dist = rad * 2.6;
+      cam.position.set(0, 0.36 * dist, dist);
+      cam.lookAt(0, size.y * 0.3, 0);
+      sc.left = sc.bottom = -rad * 1.4;
+      sc.right = sc.top = rad * 1.4;
+      sc.updateProjectionMatrix();
     },
     run(on: boolean) {
       cancelAnimationFrame(raf);
@@ -229,6 +270,7 @@ function pause() {
       <div class="modal">
         <h2>Paused</h2>
         <div class="sheet" style="box-shadow:none;padding:0;text-align:left">${controlsHtml(game.input.scheme)}</div>
+        <div class="quality"><span>Graphics</span>${(['low', 'medium', 'high'] as Quality[]).map((q) => `<button class="pick ${game.quality === q ? 'on' : ''}" data-act="quality" data-id="${q}">${q}</button>`).join('')}</div>
         <div class="row">
           <button class="btn" data-act="resume" autofocus>Resume</button>
           <button class="btn ghost" data-act="launch">Restart</button>
@@ -326,6 +368,10 @@ ui.addEventListener('click', (e) => {
       if (screen === 'pause') pause();
       else brief();
       break;
+    case 'quality':
+      game.setQuality(id as Quality);
+      pause();
+      break;
     case 'launch':
       launch();
       break;
@@ -356,27 +402,56 @@ window.addEventListener('blur', () => {
 });
 
 game.onEnd = debrief;
-game.loadMission('fire');
-title();
 
-// Dev shortcut: ?fly=strike (optionally &drone=mauler) jumps straight into a flight.
-const qs = new URLSearchParams(location.search);
-const auto = MISSIONS.find((m) => m.id === qs.get('fly'));
-if (auto) {
-  mission = auto;
-  drone = DRONES.find((d) => d.id === qs.get('drone') && d.mission === auto.id) ?? DRONES.filter((d) => d.mission === auto.id)[1];
-  game.loadMission(auto.id);
-  launch();
-  const air = Number(qs.get('air'));
-  const d = game.drone;
-  if (air > 0 && d) {
-    d.pos.y += air;
-    d.landed = false;
-    d.armed = true;
-    d.spool = 1;
-    d.gimbal = -0.35;
+function boot() {
+  game.loadMission('fire');
+  title();
+
+  // Dev shortcuts: ?fly=strike (optionally &drone=mauler&air=30) jumps straight
+  // into a flight; ?hangar=fire opens the hangar.
+  const qs = new URLSearchParams(location.search);
+  const auto = MISSIONS.find((m) => m.id === qs.get('fly'));
+  const hang = MISSIONS.find((m) => m.id === qs.get('hangar'));
+  if (hang) {
+    mission = hang;
+    drone = DRONES.find((d) => d.id === qs.get('drone') && d.mission === hang.id) ?? DRONES.filter((d) => d.mission === hang.id)[1];
+    game.loadMission(hang.id);
+    hangar();
+  }
+  if (auto) {
+    mission = auto;
+    drone = DRONES.find((d) => d.id === qs.get('drone') && d.mission === auto.id) ?? DRONES.filter((d) => d.mission === auto.id)[1];
+    game.loadMission(auto.id);
+    launch();
+    const air = Number(qs.get('air'));
+    const d = game.drone;
+    if (air > 0 && d) {
+      d.pos.y += air;
+      d.landed = false;
+      d.armed = true;
+      d.spool = 1;
+      d.gimbal = Number(qs.get('tilt') ?? -0.35);
+      if (qs.has('x')) d.pos.x = Number(qs.get('x'));
+      if (qs.has('z')) d.pos.z = Number(qs.get('z'));
+      if (qs.has('yaw')) d.yaw = Number(qs.get('yaw'));
+    }
   }
 }
+
+show('none', `<section class="screen loading">
+  <h1 class="logo">Sky<em>Duty</em></h1>
+  <div class="loadbar"><i id="loadfill"></i></div>
+  <div class="foot">Preparing terrain, sky and airframes…</div>
+</section>`);
+ui.classList.add('on');
+game.onLoad = (f) => {
+  const el = document.getElementById('loadfill');
+  if (el) el.style.width = `${Math.round(f * 100)}%`;
+};
+game.ready.then(boot, (err) => {
+  console.error(err);
+  ui.innerHTML = '<section class="screen"><h2>Could not load the game files</h2><p>Check your connection and reload the page.</p></section>';
+});
 
 // Handy in the browser console while iterating.
 (window as unknown as { __sky: unknown }).__sky = { game, get result() { return lastResult; } };

@@ -245,3 +245,13 @@ kbd { font-family: var(--display); font-size: 12px; font-weight: 700; padding: 3
 @media (prefers-reduced-motion: reduce) {
   .screen, .toast, .modal .stars b { animation: none; }
 }
+
+/* Loading screen */
+.loading { justify-content: center; }
+.loadbar { width: min(420px, 80vw); height: 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.25); overflow: hidden; box-shadow: 0 6px 18px rgba(8, 50, 110, 0.25); }
+.loadbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--sun), #fff); transition: width 0.25s ease-out; }
+
+/* Graphics quality picker in the pause menu */
+.quality { display: flex; align-items: center; gap: 8px; justify-content: center; }
+.quality span { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; margin-right: 6px; opacity: 0.8; }
+.quality .pick { text-transform: capitalize; text-align: center; min-width: 76px; }
