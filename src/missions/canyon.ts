@@ -178,12 +178,12 @@ export class CanyonMission extends Mission {
     const PH = canyonHeight(PX, PZ);
     const w = (this.world = new World(
       this.scene,
-      { id: 'mist', sun: 0xfff1e0, sunDir: new THREE.Vector3(-0.45, 0.5, -0.7), sunIntensity: 2.3, fogNear: 70, fogFar: 1000, ambient: 1.15 },
+      { id: 'cloud', sun: 0xfff1e0, sunDir: new THREE.Vector3(-0.45, 0.5, -0.7), sunIntensity: 2.3, fogNear: 70, fogFar: 1000, ambient: 1.15 },
       {
         amp: 60, base: 0, seed: 1, shape: canyonHeight, detail: 340, cliffs: true,
         tex: ['leafy_grass', 'river_small_rocks', 'mossy_rock'], shore: 1.6, tint: 0x6f8640, grade: 0xe6edf0,
-        grass: { color: 0x93a64c, density: 0.85, size: 0.6 },
-        flats: [{ x: PX, z: PZ, r: 12, h: PH }],
+        grass: { color: 0x93a64c, density: 1, size: 0.62 }, patch: 0.64,
+        flats: [{ x: PX, z: PZ, r: 9, h: PH }],
       },
     ));
     this.waterY = 0.8;
@@ -279,7 +279,7 @@ export class CanyonMission extends Mission {
       const x = (r() - 0.5) * 640;
       const z = (r() - 0.5) * 640;
       const h = canyonHeight(x, z);
-      if (h < 56 || Math.hypot(x, z) > 330 || nearPad(x, z, 22) || slope(x, z) > 0.45) continue;
+      if (h < 56 || Math.hypot(x, z) > 330 || nearPad(x, z, 14) || slope(x, z) > 0.45) continue;
       if (noise2(x * 0.018 + 4, z * 0.018) < 0.52) continue;
       trees.push({ x, z, s: 0.75 + r() * 0.8 });
     }
@@ -306,6 +306,27 @@ export class CanyonMission extends Mission {
       if (canyonHeight(x, z) < 56 || nearPad(x, z, 18)) continue;
       rocks.push({ x, z, s: 0.8 + r() * 2.2 });
     }
+    // Near-ground detail around the pad: boulders and scattered stones in the grass,
+    // so the first seconds of every flight have something close to read speed against.
+    for (let i = 0; i < 400 && rocks.length < 300; i++) {
+      const a = r() * Math.PI * 2;
+      const d = 10 + r() * 60;
+      const x = PX + Math.cos(a) * d;
+      const z = PZ + Math.sin(a) * d;
+      if (canyonHeight(x, z) < 56 || slope(x, z) > 0.4) continue;
+      rocks.push({ x, z, s: d < 25 ? 0.25 + r() * 0.5 : 0.35 + r() * r() * 1.6 });
+    }
+    // Small trees and saplings closing in on the pad.
+    const near: { x: number; z: number; s: number }[] = [];
+    for (let i = 0; i < 300 && near.length < 26; i++) {
+      const a = r() * Math.PI * 2;
+      const d = 15 + r() * 30;
+      const x = PX + Math.cos(a) * d;
+      const z = PZ + Math.sin(a) * d;
+      if (canyonHeight(x, z) < 56 || slope(x, z) > 0.4) continue;
+      near.push({ x, z, s: 0.4 + r() * 0.5 });
+    }
+    w.pines(near, 0x587438, 0.5, 0.1);
     w.rocks(rocks, 0xb4b6a8, 'mossy_rock');
   }
 

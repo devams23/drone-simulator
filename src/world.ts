@@ -36,6 +36,8 @@ export interface TerrainCfg {
   tex: [TexId, TexId, TexId];
   /** Water level: banks near it turn to the second texture. */
   shore?: number;
+  /** Noise threshold for worn patches of the second texture (higher = fewer). */
+  patch?: number;
   grass?: { color: number; density: number; size: number };
   /** Colour the main ground layer leans toward (lush grass). */
   tint?: number;
@@ -140,7 +142,8 @@ export class World {
   /** How much of the second and third ground textures shows at a point. */
   private mixAt(x: number, z: number, h: number): [number, number] {
     const t = this.terrain;
-    let b = smooth(0.52, 0.7, fbm2(x * 0.018 + t.seed, z * 0.018 - t.seed));
+    const p = t.patch ?? 0.52;
+    let b = smooth(p, p + 0.18, fbm2(x * 0.018 + t.seed, z * 0.018 - t.seed));
     for (const f of t.flats) b = Math.max(b, 1 - smooth(f.r * 0.85, f.r * 1.15, Math.hypot(x - f.x, z - f.z)));
     if (t.shore !== undefined) b = Math.max(b, 1 - smooth(t.shore + 0.3, t.shore + 1.6, h));
     const e = 2;
