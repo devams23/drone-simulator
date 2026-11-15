@@ -44,6 +44,10 @@ export class Drone {
   private swayX = 0;
   private swayY = 0;
   private fallSpin = 0;
+  // Smoothed camera attitude (NaN = snap on first use).
+  private sPitch = NaN;
+  private sRoll = NaN;
+  private sYaw = NaN;
 
   constructor(public spec: DroneSpec) {
     this.ph = physics(spec);
@@ -51,7 +55,7 @@ export class Drone {
     // The real airframe hangs above and behind the camera, which sits under
     // the nose: the front arms and props frame the top corners of the view.
     this.model = buildDrone(spec, { fpv: true });
-    this.model.group.position.set(0, 0.3 * spec.bulk, -0.1 * spec.bulk);
+    this.model.group.position.set(0, 0.42 * spec.bulk, 0.08 * spec.bulk);
     this.rig.add(this.model.group);
   }
 
@@ -208,28 +212,43 @@ export class Drone {
   // ------------------------------------------------------------------ view
   applyCamera(cam: THREE.PerspectiveCamera, t: number, dt: number) {
     const s = this.shake;
-    const vib = this.spool * 0.0016;
+    const vib = this.spool * 0.0005;
+    // Smooth, band-limited shake instead of per-frame random jitter.
+    const n1 = (Math.sin(t * 31.7) + Math.sin(t * 47.3 + 1.3)) * 0.5;
+    const n2 = (Math.sin(t * 29.1 + 2.1) + Math.sin(t * 53.9)) * 0.5;
     cam.position.copy(this.pos);
-    cam.position.x += Math.sin(t * 97) * vib + (Math.random() - 0.5) * s * 0.12;
-    cam.position.y += Math.sin(t * 113) * vib + (Math.random() - 0.5) * s * 0.12;
-    this.camPitch = this.gimbal - this.pitch * 0.42;
+    cam.position.x += Math.sin(t * 23) * vib + n1 * s * 0.06;
+    cam.position.y += Math.sin(t * 19) * vib + n2 * s * 0.06;
+    // Low-pass the camera attitude so the view glides rather than snaps.
+    const wantP = this.gimbal - this.pitch * 0.42;
+    const wantR = -this.roll * 0.75;
+    if (Number.isNaN(this.sPitch) || Math.abs(Math.atan2(Math.sin(this.yaw - this.sYaw), Math.cos(this.yaw - this.sYaw))) > 1) {
+      this.sPitch = wantP;
+      this.sRoll = wantR;
+      this.sYaw = this.yaw;
+    }
+    const ka = 1 - Math.exp(-dt * 8);
+    this.sPitch += (wantP - this.sPitch) * ka;
+    this.sRoll += (wantR - this.sRoll) * ka;
+    this.sYaw += Math.atan2(Math.sin(this.yaw - this.sYaw), Math.cos(this.yaw - this.sYaw)) * (1 - Math.exp(-dt * 14));
+    this.camPitch = this.sPitch;
     cam.rotation.order = 'YXZ';
     cam.rotation.set(
-      this.camPitch + (Math.random() - 0.5) * s * 0.035,
-      this.yaw + (this.alive ? 0 : this.fallSpin * 0.6),
-      -this.roll * 0.75 + (this.alive ? 0 : Math.sin(this.fallSpin) * 0.8) + (Math.random() - 0.5) * s * 0.03,
+      this.camPitch + n2 * s * 0.02,
+      this.sYaw + (this.alive ? 0 : this.fallSpin * 0.6),
+      this.sRoll + (this.alive ? 0 : Math.sin(this.fallSpin) * 0.8) + n1 * s * 0.018,
     );
     const cp = Math.cos(this.camPitch);
-    this.aim.set(-Math.sin(this.yaw) * cp, Math.sin(this.camPitch), -Math.cos(this.yaw) * cp);
+    this.aim.set(-Math.sin(this.sYaw) * cp, Math.sin(this.camPitch), -Math.cos(this.sYaw) * cp);
 
     // The airframe lags behind the camera a little, so the arms visibly move.
-    const kx = Math.min(1, dt * 7);
+    const kx = 1 - Math.exp(-dt * 5);
     this.swayX += (-this.roll * 0.35 - this.swayX) * kx;
     this.swayY += (-this.vel.y * 0.0045 - this.swayY) * kx;
     this.rig.rotation.set(-this.gimbal * 0.42 + this.pitch * 0.3, 0, this.swayX);
     this.rig.position.set(
-      Math.sin(t * 131) * vib * 1.5,
-      Math.max(-0.05, Math.min(0.05, this.swayY)) + Math.sin(t * 89) * vib * 1.5,
+      Math.sin(t * 27) * vib,
+      Math.max(-0.05, Math.min(0.05, this.swayY)) + Math.sin(t * 21) * vib,
       0,
     );
     const spin = this.spool * (58 + this.load * 14) * dt;

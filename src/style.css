@@ -137,7 +137,7 @@ html, body {
 #cluster-l, #cluster-r { position: absolute; bottom: 18px; display: flex; align-items: flex-end; gap: 14px; }
 #cluster-l { left: 18px; }
 #cluster-r { right: 18px; }
-#systems { position: relative; width: 240px; display: grid; gap: 7px; padding: 10px 12px; }
+#hud #systems { position: relative; width: 240px; display: grid; gap: 7px; padding: 10px 12px; }
 .gauge { display: grid; grid-template-columns: 62px 1fr 54px; align-items: center; gap: 8px; }
 .gauge label { font-size: 10px; letter-spacing: 0.14em; color: var(--dim); }
 .gauge .bar { margin: 0; }
@@ -202,6 +202,23 @@ html, body {
 .marker small { display: block; font-size: 10px; color: var(--c); font-variant-numeric: tabular-nums; }
 .marker.off b { background: none; width: 22px; height: 22px; left: -11px; top: -11px; border-radius: 50%; border: 1.5px solid var(--c); background-color: rgba(10, 16, 24, 0.5); }
 .marker.off em { font-size: 12px; }
+
+/* Shorter windows: scale instrument clusters so everything stays on screen. */
+#cluster-l { transform-origin: bottom left; }
+#cluster-r { transform-origin: bottom right; }
+#cluster-c { transform-origin: bottom center; }
+#topright { transform-origin: top right; }
+#objective { transform-origin: top left; }
+@media (max-height: 780px) {
+  #cluster-l, #cluster-r, #topright, #objective { transform: scale(0.84); }
+  #cluster-c { transform: translateX(-50%) scale(0.84); }
+  #hint { bottom: 170px; }
+}
+@media (max-height: 620px) {
+  #cluster-l, #cluster-r, #topright, #objective { transform: scale(0.7); }
+  #cluster-c { transform: translateX(-50%) scale(0.7); }
+  #hint { bottom: 140px; }
+}
 
 @media (max-width: 900px) {
   #cluster-l .stick, #cluster-r .stick { display: none; }
