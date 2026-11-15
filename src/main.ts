@@ -1,7 +1,7 @@
 // Menus and the player journey: garage → operation or free roam → hangar →
 // briefing → flight → debrief. Every menu sits over a live 3D drone garage.
 import './style.css';
-import { DRONES, MISSIONS, STAT_LABELS, physics, type DroneSpec, type MissionCard, type MissionId } from './data';
+import { DRONES, MISSIONS, STAT_LABELS, physics, type DroneSpec, type MissionCard, type MissionId, type WorldId } from './data';
 import { Game, type Quality, type Result } from './game';
 import { Garage, type Shot } from './garage';
 import type { Scheme } from './input';
@@ -25,12 +25,13 @@ const ACCENT = '#5ef0c4';
 const SHOTS: Partial<Record<Screen, Shot>> = { title: 'title', settings: 'title', missions: 'missions', roam: 'roam', hangar: 'hangar', brief: 'brief' };
 
 interface Place {
-  id: MissionId;
+  id: WorldId;
   name: string;
   terrain: string;
   blurb: string;
 }
 const PLACES: Place[] = [
+  { id: 'canyon', name: 'Basalt Gorge', terrain: 'Canyon · river · waterfalls', blurb: 'A glacial river between mossy basalt walls. Thread the stacks, chase the falls to the headwall.' },
   { id: 'fire', name: 'Pine Valley', terrain: 'Forest · lake · village', blurb: 'Tall conifers, a lakeside village and ridgelines to thread between.' },
   { id: 'strike', name: 'Red Mesa', terrain: 'Desert · sandstone', blurb: 'Sandstone towers and wide open washes under a low, warm sun.' },
   { id: 'relief', name: 'Riverlands', terrain: 'Floodplain · farms', blurb: 'Flooded fields, rooftops and tree lines after the storm has passed.' },
@@ -383,8 +384,8 @@ function resume() {
   }
 }
 
-function openWorld(id: MissionId) {
-  mission = MISSIONS.find((m) => m.id === id)!;
+function openWorld(id: WorldId) {
+  mission = MISSIONS.find((m) => m.id === id) ?? mission;
   game.loadMission(id);
   game.halt = true;
 }
@@ -506,23 +507,26 @@ function boot() {
   // Dev shortcuts: ?fly=strike (optionally &drone=mauler&air=30) jumps straight
   // into a flight; ?hangar=fire opens the hangar; ?screen=roam opens a menu.
   const qs = new URLSearchParams(location.search);
-  const auto = MISSIONS.find((m) => m.id === qs.get('fly'));
-  const hang = MISSIONS.find((m) => m.id === qs.get('hangar'));
-  const pick = (id: MissionId) => DRONES.find((d) => d.id === qs.get('drone') && (roam || d.mission === id)) ?? DRONES.filter((d) => d.mission === id)[1];
-  if (qs.get('roam') === '1') {
+  const known = (s: string | null) => (PLACES.find((p) => p.id === s) ?? MISSIONS.find((m) => m.id === s))?.id;
+  const autoId = known(qs.get('fly'));
+  const hangId = known(qs.get('hangar'));
+  const pick = (id: WorldId) =>
+    DRONES.find((d) => d.id === qs.get('drone') && (roam || d.mission === id)) ?? DRONES.filter((d) => d.mission === id)[1] ?? DRONES[1];
+  const onlyRoam = (s?: WorldId) => !!s && !MISSIONS.some((m) => m.id === s);
+  if (qs.get('roam') === '1' || onlyRoam(autoId) || onlyRoam(hangId)) {
     roam = true;
     place = PLACES.find((p) => p.id === (qs.get('hangar') ?? qs.get('fly'))) ?? PLACES[0];
   }
   const screens: Record<string, () => void> = { missions, roam: roamScreen, settings, brief };
-  if (hang) {
-    drone = pick(hang.id);
-    openWorld(hang.id);
+  if (hangId) {
+    drone = pick(hangId);
+    openWorld(hangId);
     hangar();
     if (qs.get('screen') === 'brief') brief();
   } else if (screens[qs.get('screen') ?? '']) screens[qs.get('screen')!]();
-  if (auto) {
-    drone = pick(auto.id);
-    openWorld(auto.id);
+  if (autoId) {
+    drone = pick(autoId);
+    openWorld(autoId);
     launch(qs.get('free') === '1' || roam);
     const air = Number(qs.get('air'));
     const d = game.drone;
@@ -535,6 +539,7 @@ function boot() {
       if (qs.has('x')) d.pos.x = Number(qs.get('x'));
       if (qs.has('z')) d.pos.z = Number(qs.get('z'));
       if (qs.has('yaw')) d.yaw = Number(qs.get('yaw'));
+      if (qs.has('y')) d.pos.y = Number(qs.get('y'));
     }
   }
 }

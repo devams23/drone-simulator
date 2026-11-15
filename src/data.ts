@@ -1,6 +1,8 @@
 // Static game data: drone roster and mission cards.
 
 export type MissionId = 'fire' | 'strike' | 'relief';
+/** Every loadable world: the three operations plus free-roam-only maps. */
+export type WorldId = MissionId | 'canyon';
 
 export interface DroneStats {
   speed: number; // 1-10

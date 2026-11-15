@@ -1,7 +1,7 @@
 // What every mission provides to the game loop and the HUD.
 import * as THREE from 'three';
 import type { Sound } from '../audio';
-import type { MissionId } from '../data';
+import type { WorldId } from '../data';
 import type { Drone } from '../drone';
 import type { Controls } from '../input';
 import type { Fx } from '../particles';
@@ -31,7 +31,7 @@ export interface Payload {
 export type Toast = (text: string, kind?: 'info' | 'good' | 'bad') => void;
 
 export abstract class Mission {
-  abstract readonly id: MissionId;
+  abstract readonly id: WorldId;
   world!: World;
   markers: Marker[] = [];
   status: 'active' | 'won' | 'lost' = 'active';

@@ -41,6 +41,12 @@ export interface TerrainCfg {
   tint?: number;
   /** Colour grade over the whole ground (warms a desert, say). */
   grade?: number;
+  /** Custom height field replacing the rolling-hills formula (flats still apply). */
+  shape?: (x: number, z: number) => number;
+  /** Grid resolution of the central terrain mesh (default 220). */
+  detail?: number;
+  /** Project the rock layer from the side too, so tall cliffs don't smear. */
+  cliffs?: boolean;
 }
 
 /** Graphics settings shared with the renderer. */
@@ -158,6 +164,7 @@ export class World {
         uGrade: { value: new THREE.Color(t.grade ?? 0xffffff) },
         uTintAmt: { value: t.tint === undefined ? 0 : 0.62 },
       });
+      if (t.cliffs) sh.fragmentShader = '#define TRI\n' + sh.fragmentShader;
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', '#include <common>\nattribute vec2 aMix;\nvarying vec2 vMix;\nvarying vec3 vTPos;\nvarying vec3 vTNor;')
         .replace('#include <begin_vertex>', '#include <begin_vertex>\nvMix = aMix; vTPos = position; vTNor = normal;');
@@ -168,7 +175,7 @@ export class World {
           uniform sampler2D dA, dB, dC, nA, nB, nC, tMacro;
           uniform vec3 uTint, uGrade; uniform float uTintAmt;
           varying vec2 vMix; varying vec3 vTPos; varying vec3 vTNor;
-          vec3 tCol; vec3 tNor;
+          vec3 tCol; vec3 tNor; vec3 tCW = vec3(0.0);
           void terrainSample() {
             vec2 u1 = vTPos.xz / 4.5;
             vec2 u2 = vec2(vTPos.x * 0.92 + vTPos.z * 0.39, vTPos.z * 0.92 - vTPos.x * 0.39) / 29.0;
@@ -179,12 +186,26 @@ export class World {
             vec3 an = mix(texture2D(nA, u1).xyz, texture2D(nA, u2).xyz, f);
             vec3 bn = mix(texture2D(nB, u1).xyz, texture2D(nB, u2).xyz, f);
             vec3 cn = mix(texture2D(nC, u1 * 0.6).xyz, texture2D(nC, u2).xyz, f);
+            #ifdef TRI
+              vec3 tw = pow(abs(normalize(vTNor)), vec3(4.0));
+              tw /= (tw.x + tw.y + tw.z);
+              float sN = 1.0 / 7.5, sF = 1.0 / 29.0;
+              vec3 cNear = texture2D(dC, vTPos.xz * sN).rgb * tw.y + texture2D(dC, vTPos.xy * sN).rgb * tw.z + texture2D(dC, vTPos.zy * sN).rgb * tw.x;
+              vec3 cFar = texture2D(dC, vTPos.xz * sF).rgb * tw.y + texture2D(dC, vTPos.xy * sF).rgb * tw.z + texture2D(dC, vTPos.zy * sF).rgb * tw.x;
+              c = mix(cNear, cFar, f);
+              vec3 qxz = texture2D(nC, vTPos.xz * sN).xyz * 2.0 - 1.0;
+              vec3 qxy = texture2D(nC, vTPos.xy * sN).xyz * 2.0 - 1.0;
+              vec3 qzy = texture2D(nC, vTPos.zy * sN).xyz * 2.0 - 1.0;
+              tCW = vec3(qxz.x, 0.0, -qxz.y) * tw.y + vec3(qxy.x, qxy.y, 0.0) * tw.z + vec3(0.0, qzy.y, qzy.x) * tw.x;
+              cn = vec3(0.5, 0.5, 1.0);
+            #endif
             a = mix(a, uTint * (0.35 + dot(a, vec3(0.3333)) * 2.6), uTintAmt);
             float la = dot(a, vec3(0.6));
             float wb = smoothstep(0.38, 0.62, vMix.x + (la - 0.25) * 0.5);
             float wc = smoothstep(0.38, 0.62, vMix.y + (dot(c, vec3(0.5)) - 0.25) * 0.5);
             tCol = mix(mix(a, b, wb), c, wc);
             tNor = mix(mix(an, bn, wb), cn, wc) * 2.0 - 1.0;
+            tCW *= wc;
             float m = dot(texture2D(tMacro, vTPos.xz / 240.0).rgb, vec3(0.34));
             float m2 = dot(texture2D(tMacro, vTPos.zx / 71.0).rgb, vec3(0.34));
             tCol *= (0.62 + m * 1.6 * 0.55 + m2 * 1.6 * 0.3) * uGrade;
@@ -193,7 +214,7 @@ export class World {
         .replace('#include <map_fragment>', 'terrainSample();\ndiffuseColor.rgb *= tCol;')
         .replace(
           '#include <normal_fragment_maps>',
-          '#include <normal_fragment_maps>\nnormal = normalize((viewMatrix * vec4(normalize(normalize(vTNor) + vec3(tNor.x, 0.0, -tNor.y) * 0.85), 0.0)).xyz);',
+          '#include <normal_fragment_maps>\nnormal = normalize((viewMatrix * vec4(normalize(normalize(vTNor) + vec3(tNor.x, 0.0, -tNor.y) * 0.85 + tCW * 0.9), 0.0)).xyz);',
         );
     };
 
@@ -230,7 +251,7 @@ export class World {
       m.userData.noCast = true;
       this.scene.add(m);
     };
-    build(this.size, 220, 0, 0);
+    build(this.size, t.detail ?? 220, 0, 0);
     build(3600, 144, this.size / 2 - 26, 0.5);
   }
 
@@ -329,6 +350,7 @@ export class World {
   heightAt(x: number, z: number) {
     const t = this.terrain;
     const s = t.seed;
+    if (t.shape) return this.flatten(x, z, t.shape(x, z));
     let h =
       t.base +
       t.amp *
@@ -336,7 +358,11 @@ export class World {
           0.55 * Math.sin(x * 0.011 + s) * Math.cos(z * 0.013 - s * 1.7) +
           0.3 * Math.sin(x * 0.027 + z * 0.019 + s * 2.3) +
           0.12 * Math.sin(x * 0.071 + s) * Math.sin(z * 0.063 - s));
-    for (const f of t.flats) {
+    return this.flatten(x, z, h);
+  }
+
+  private flatten(x: number, z: number, h: number) {
+    for (const f of this.terrain.flats) {
       const d = Math.hypot(x - f.x, z - f.z);
       if (d < f.r * 1.7) h = f.h + (h - f.h) * smooth(f.r, f.r * 1.7, d);
     }
@@ -829,6 +855,54 @@ export class World {
 
   /** Rippling water that mirrors the sky. */
   water(y: number, color: number, radius?: number, x = 0, z = 0) {
+    const size = radius ? radius * 2 : 3600;
+    const geo = radius ? new THREE.CircleGeometry(radius, 64) : new THREE.PlaneGeometry(size, size);
+    const m = new THREE.Mesh(geo, this.waterMat(color, size / 26));
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(x, y, z);
+    m.receiveShadow = true;
+    m.userData.noCast = true;
+    this.scene.add(m);
+    return m;
+  }
+
+  /** A strip of water following a path of (x, z) points at height y. */
+  waterRibbon(path: [number, number][], width: number, y: number, color: number) {
+    const pos: number[] = [];
+    const uv: number[] = [];
+    const idx: number[] = [];
+    let run = 0;
+    path.forEach(([x, z], i) => {
+      const [ax, az] = path[Math.max(0, i - 1)];
+      const [bx, bz] = path[Math.min(path.length - 1, i + 1)];
+      const l = Math.hypot(bx - ax, bz - az) || 1;
+      const nx = -(bz - az) / l, nz = (bx - ax) / l;
+      if (i > 0) run += Math.hypot(x - path[i - 1][0], z - path[i - 1][1]);
+      pos.push(x + nx * width / 2, y, z + nz * width / 2, x - nx * width / 2, y, z - nz * width / 2);
+      uv.push(0, run / width, 1, run / width);
+      if (i > 0) {
+        const k = i * 2;
+        idx.push(k - 2, k - 1, k, k - 1, k + 1, k);
+      }
+    });
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    if (g.attributes.normal.getY(0) < 0) {
+      const a = g.index!.array as Uint16Array;
+      for (let i = 0; i < a.length; i += 3) [a[i + 1], a[i + 2]] = [a[i + 2], a[i + 1]];
+      g.computeVertexNormals();
+    }
+    const m = new THREE.Mesh(g, this.waterMat(color, 1, width / 26));
+    m.receiveShadow = true;
+    m.userData.noCast = true;
+    this.scene.add(m);
+    return m;
+  }
+
+  private waterMat(color: number, repeat: number, repeatY = repeat) {
     const N = 256;
     const normal = canvasTex(N, N, (g) => {
       const img = g.createImageData(N, N);
@@ -867,20 +941,9 @@ export class World {
       g.putImageData(img, 0, 0);
     });
     normal.colorSpace = THREE.NoColorSpace;
-    const size = radius ? radius * 2 : 3600;
-    normal.repeat.setScalar(size / 26);
+    normal.repeat.set(repeat, repeatY);
     this.waters.push(normal);
-    const geo = radius ? new THREE.CircleGeometry(radius, 64) : new THREE.PlaneGeometry(size, size);
-    const m = new THREE.Mesh(
-      geo,
-      new THREE.MeshStandardMaterial({ color, roughness: 0.06, metalness: 0.55, normalMap: normal, normalScale: new THREE.Vector2(0.3, 0.3), transparent: true, opacity: 0.93 }),
-    );
-    m.rotation.x = -Math.PI / 2;
-    m.position.set(x, y, z);
-    m.receiveShadow = true;
-    m.userData.noCast = true;
-    this.scene.add(m);
-    return m;
+    return new THREE.MeshStandardMaterial({ color, roughness: 0.06, metalness: 0.55, normalMap: normal, normalScale: new THREE.Vector2(0.3, 0.3), transparent: true, opacity: 0.93 });
   }
 }
 

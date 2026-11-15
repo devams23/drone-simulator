@@ -7,11 +7,12 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { loadAssets } from './assets';
 import { Sound } from './audio';
-import type { DroneSpec, MissionId } from './data';
+import type { DroneSpec, WorldId } from './data';
 import { Drone } from './drone';
 import { Hud } from './hud';
 import { Input, type Controls } from './input';
 import type { Mission } from './missions/base';
+import { CanyonMission } from './missions/canyon';
 import { FireMission } from './missions/fire';
 import { ReliefMission } from './missions/relief';
 import { StrikeMission } from './missions/strike';
@@ -80,7 +81,7 @@ export class Game {
   halt = false;
   onEnd: (r: Result) => void = () => {};
 
-  private missionId?: MissionId;
+  private missionId?: WorldId;
   private last = 0;
   private time = 0;
   private orbitAngle = 0.6;
@@ -157,14 +158,14 @@ export class Game {
   }
 
   /** Build a mission's world and show it with an orbiting camera. */
-  loadMission(id: MissionId) {
+  loadMission(id: WorldId) {
     disposeScene(this.scene);
     this.scene = new THREE.Scene();
     this.fx = new Fx();
     this.fx.addTo(this.scene);
     this.camera.clear();
     this.scene.add(this.camera);
-    const Ctor = id === 'fire' ? FireMission : id === 'strike' ? StrikeMission : ReliefMission;
+    const Ctor = { fire: FireMission, strike: StrikeMission, relief: ReliefMission, canyon: CanyonMission }[id];
     this.mission = new Ctor(this.scene, this.fx, this.sound);
     enableShadows(this.scene);
     if (this.renderPass) this.renderPass.scene = this.scene;
