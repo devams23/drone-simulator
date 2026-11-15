@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { type DroneSpec, physics } from './data';
 import type { Controls } from './input';
+import { buildDrone, type DroneModel } from './models/drone';
 import type { World } from './world';
 
 export interface Env {
@@ -12,7 +13,6 @@ export interface Env {
 
 const G = 9.81;
 const CEILING = 115;
-const tmp = new THREE.Vector3();
 const nrm = new THREE.Vector3();
 
 export class Drone {
@@ -40,8 +40,7 @@ export class Drone {
   onDamage: (kind: string, amount: number) => void = () => {};
 
   rig = new THREE.Group();
-  private props: THREE.Group[] = [];
-  private discs: THREE.Mesh[] = [];
+  private model: DroneModel;
   private swayX = 0;
   private swayY = 0;
   private fallSpin = 0;
@@ -49,7 +48,11 @@ export class Drone {
   constructor(public spec: DroneSpec) {
     this.ph = physics(spec);
     this.hull = this.ph.hull;
-    this.buildRig();
+    // The real airframe hangs above and behind the camera, which sits under
+    // the nose: the front arms and props frame the top corners of the view.
+    this.model = buildDrone(spec, { fpv: true });
+    this.model.group.position.set(0, 0.3 * spec.bulk, -0.1 * spec.bulk);
+    this.rig.add(this.model.group);
   }
 
   // ---------------------------------------------------------------- physics
@@ -230,133 +233,7 @@ export class Drone {
       0,
     );
     const spin = this.spool * (58 + this.load * 14) * dt;
-    this.props.forEach((p, i) => (p.rotation.y += spin * (i % 2 ? -1 : 1)));
-    for (const d of this.discs) (d.material as THREE.MeshBasicMaterial).opacity = 0.05 + this.spool * 0.17;
+    this.model.props.forEach((p, i) => (p.rotation.y += spin * (i === 0 || i === 3 ? 1 : -1)));
+    this.model.setSpin(this.spool);
   }
-
-  private buildRig() {
-    const spec = this.spec;
-    const b = spec.bulk;
-    const body = new THREE.MeshStandardMaterial({ color: spec.color, roughness: 0.45, metalness: 0.3 });
-    const carbon = new THREE.MeshStandardMaterial({ color: 0x1c1f24, roughness: 0.6, metalness: 0.4 });
-    const accent = new THREE.MeshStandardMaterial({ color: spec.accent, roughness: 0.4, emissive: spec.accent, emissiveIntensity: 0.35 });
-    const blade = new THREE.MeshStandardMaterial({ color: 0x2a2d33, roughness: 0.5 });
-
-    for (const side of [-1, 1]) {
-      const root = new THREE.Vector3(side * 0.15, -0.44, -0.2);
-      const motor = new THREE.Vector3(side * 0.74, -0.31, -0.84);
-      const arm = beam(root, motor, 0.06 * b, body);
-      this.rig.add(arm);
-      const stripe = beam(root.clone().lerp(motor, 0.55), root.clone().lerp(motor, 0.8), 0.064 * b, accent);
-      this.rig.add(stripe);
-
-      const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.055 * b, 0.065 * b, 0.1, 14), carbon);
-      bell.position.copy(motor).add(tmp.set(0, 0.03, 0));
-      this.rig.add(bell);
-
-      const hub = new THREE.Group();
-      hub.position.copy(motor).add(tmp.set(0, 0.095, 0));
-      const rad = 0.3 + b * 0.06;
-      const disc = new THREE.Mesh(
-        new THREE.CircleGeometry(rad, 28),
-        new THREE.MeshBasicMaterial({ color: 0xdfe6ee, transparent: true, opacity: 0.1, side: THREE.DoubleSide, depthWrite: false }),
-      );
-      disc.rotation.x = -Math.PI / 2;
-      hub.add(disc);
-      this.discs.push(disc);
-      for (let i = 0; i < 2; i++) {
-        const bl = new THREE.Mesh(new THREE.BoxGeometry(rad * 2, 0.008, 0.05), blade);
-        bl.rotation.y = (i * Math.PI) / 2;
-        hub.add(bl);
-      }
-      const tip = new THREE.Mesh(new THREE.TorusGeometry(rad, 0.006, 6, 32), accent);
-      tip.rotation.x = Math.PI / 2;
-      hub.add(tip);
-      this.rig.add(hub);
-      this.props.push(hub);
-    }
-    // Nose: the centre of the airframe peeking in at the bottom of the view.
-    const nose = new THREE.Mesh(new THREE.BoxGeometry(0.34 * b, 0.09, 0.34), body);
-    nose.position.set(0, -0.44, -0.5);
-    this.rig.add(nose);
-    const led = new THREE.Mesh(new THREE.BoxGeometry(0.2 * b, 0.02, 0.03), accent);
-    led.position.set(0, -0.39, -0.66);
-    this.rig.add(led);
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.028, 0.34, 10), carbon);
-    barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, -0.43, -0.78);
-    this.rig.add(barrel);
-  }
-}
-
-/** A box stretched between two points. */
-function beam(a: THREE.Vector3, b: THREE.Vector3, thick: number, mat: THREE.Material) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(thick, thick * 0.7, a.distanceTo(b)), mat);
-  m.position.copy(a).add(b).multiplyScalar(0.5);
-  m.lookAt(b);
-  return m;
-}
-
-/** Third-person model, shown in the hangar. */
-export function buildDroneModel(spec: DroneSpec) {
-  const g = new THREE.Group();
-  const b = spec.bulk;
-  const body = new THREE.MeshStandardMaterial({ color: spec.color, roughness: 0.4, metalness: 0.3 });
-  const carbon = new THREE.MeshStandardMaterial({ color: 0x1c1f24, roughness: 0.6, metalness: 0.4 });
-  const accent = new THREE.MeshStandardMaterial({ color: spec.accent, emissive: spec.accent, emissiveIntensity: 0.4 });
-
-  const hull = new THREE.Mesh(new THREE.BoxGeometry(0.5 * b, 0.16, 0.8 * b), body);
-  g.add(hull);
-  const canopy = new THREE.Mesh(new THREE.SphereGeometry(0.2 * b, 16, 10), carbon);
-  canopy.scale.set(1, 0.5, 1.5);
-  canopy.position.y = 0.1;
-  g.add(canopy);
-  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 8), accent);
-  eye.position.set(0, -0.02, -0.42 * b);
-  g.add(eye);
-
-  const spinners: THREE.Object3D[] = [];
-  for (const sx of [-1, 1]) {
-    for (const sz of [-1, 1]) {
-      const end = new THREE.Vector3(sx * 0.62 * b, 0.02, sz * 0.62 * b);
-      g.add(beam(new THREE.Vector3(sx * 0.15, 0, sz * 0.2), end, 0.06 * b, sz < 0 ? body : carbon));
-      const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.06 * b, 0.07 * b, 0.1, 12), carbon);
-      bell.position.copy(end).y += 0.06;
-      g.add(bell);
-      const hub = new THREE.Group();
-      hub.position.copy(end).y += 0.13;
-      const disc = new THREE.Mesh(
-        new THREE.CircleGeometry(0.34 * b, 24),
-        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.14, side: THREE.DoubleSide, depthWrite: false }),
-      );
-      disc.rotation.x = -Math.PI / 2;
-      const bl = new THREE.Mesh(new THREE.BoxGeometry(0.66 * b, 0.01, 0.05), carbon);
-      hub.add(disc, bl);
-      g.add(hub);
-      spinners.push(hub);
-      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.26, 6), carbon);
-      leg.position.set(sx * 0.2 * b, -0.2, sz * 0.25 * b);
-      g.add(leg);
-    }
-  }
-  // Mission payload slung underneath.
-  if (spec.mission === 'fire') {
-    const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.13 * b, 0.13 * b, 0.5 * b, 14), new THREE.MeshStandardMaterial({ color: 0x35a7ff, roughness: 0.3 }));
-    tank.rotation.x = Math.PI / 2;
-    tank.position.y = -0.18;
-    g.add(tank);
-  } else if (spec.mission === 'strike') {
-    for (const sx of [-1, 1]) {
-      const gun = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.6 * b, 8), carbon);
-      gun.rotation.x = Math.PI / 2;
-      gun.position.set(sx * 0.12, -0.14, -0.2);
-      g.add(gun);
-    }
-  } else {
-    const crate = new THREE.Mesh(new THREE.BoxGeometry(0.3 * b, 0.24 * b, 0.3 * b), new THREE.MeshStandardMaterial({ color: 0xc98a3c, roughness: 0.8 }));
-    crate.position.y = -0.22;
-    g.add(crate);
-  }
-  g.userData.spinners = spinners;
-  return g;
 }
