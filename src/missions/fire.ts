@@ -43,12 +43,10 @@ export class FireMission extends Mission {
     super(...a);
     const w = (this.world = new World(
       this.scene,
+      { id: 'day', sun: 0xfff1dc, sunDir: new THREE.Vector3(0.5, 0.42, -0.6), sunIntensity: 3.1, fogNear: 240, fogFar: 1300 },
       {
-        top: 0x2f8fe8, horizon: 0xffd9a6, sun: 0xfff0d0, sunDir: new THREE.Vector3(0.5, 0.42, -0.6),
-        fogNear: 160, fogFar: 720, hemiGround: 0x6f7f4a, sunIntensity: 2.6, hemiIntensity: 1.5,
-      },
-      {
-        amp: 13, base: 2, seed: 3.1, noise: 0.18, low: 0x7fb24a, high: 0x4f8a3a,
+        amp: 13, base: 2, seed: 3.1, tex: ['leafy_grass', 'forest_ground_04', 'rocky_terrain_02'], shore: 4, tint: 0x55782f,
+        grass: { color: 0x8fae52, density: 1, size: 0.85 },
         flats: [
           { x: 0, z: 0, r: 52, h: 9 },
           { x: LAKE.x, z: LAKE.z, r: LAKE.r, h: 1.5 },
@@ -58,7 +56,6 @@ export class FireMission extends Mission {
     ));
     this.waterY = 4;
     w.water(this.waterY, 0x2a9fd6, LAKE.r * 1.45, LAKE.x, LAKE.z);
-    w.clouds(16, 11);
     this.pad = w.pad(95, 105);
     this.spawn.copy(this.pad).y += 0.7;
     this.spawnYaw = Math.atan2(95, 105); // face the village
@@ -79,17 +76,17 @@ export class FireMission extends Mission {
       );
     }
     // Well in the square.
-    w.block(0, 9, 0, 2.4, 1.2, 2.4, 0x9a9a9a);
+    w.block(0, 9, 0, 2.4, 1.2, 2.4, 0xb9b4a8, undefined, 'brick_wall_10');
 
     // Forest everywhere that is not village, lake or pad.
     const spots: { x: number; z: number; s: number }[] = [];
-    while (spots.length < 340) {
+    while (spots.length < 520) {
       const x = (r() - 0.5) * 620;
       const z = (r() - 0.5) * 620;
       if (Math.hypot(x, z) < 60 || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r * 1.55 || Math.hypot(x - 95, z - 105) < 20) continue;
       spots.push({ x, z, s: 0.8 + r() * 0.9 });
     }
-    w.pines(spots);
+    w.pines(spots, 0x5d8040, 0.5, 0.4);
 
     // Fire sites: three houses and three forest patches burn at the start,
     // three more can catch later.

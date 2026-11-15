@@ -1,7 +1,7 @@
 // Outpost Strike: destroy a hostile outpost while its turrets shoot back.
 import * as THREE from 'three';
 import type { Controls } from '../input';
-import { World, rng, type Box } from '../world';
+import { World, boxGeo, rng, type Box } from '../world';
 import { Mission, fmtTime, type Marker, type Objective, type Payload } from './base';
 
 type Kind = 'hq' | 'radar' | 'fuel' | 'turret';
@@ -70,19 +70,16 @@ export class StrikeMission extends Mission {
     super(...a);
     const w = (this.world = new World(
       this.scene,
+      { id: 'gold', sun: 0xffe3bd, sunDir: new THREE.Vector3(-0.55, 0.38, -0.5), sunIntensity: 3.3, fogNear: 260, fogFar: 1400 },
       {
-        top: 0x3b7fd9, horizon: 0xffc98f, sun: 0xffe2b0, sunDir: new THREE.Vector3(-0.55, 0.38, -0.5),
-        fogNear: 180, fogFar: 760, hemiGround: 0xb5723f, sunIntensity: 2.8, hemiIntensity: 1.4,
-      },
-      {
-        amp: 9, base: 0, seed: 8.4, noise: 0.14, low: 0xe2b877, high: 0xc8763f,
+        amp: 9, base: 0, seed: 8.4, tex: ['sand_01', 'gravelly_sand', 'sandstone_cracks'],
+        grade: 0xffdcb4,
         flats: [
           { x: 0, z: 175, r: 14, h: 8 },
           { x: C.x, z: C.z, r: 58, h: 5 },
         ],
       },
     ));
-    w.clouds(9, 23);
     this.pad = w.pad(0, 175, '#7dff6b');
     this.spawn.copy(this.pad).y += 0.7;
     this.spawnYaw = 0; // facing -z, toward the outpost
@@ -93,15 +90,7 @@ export class StrikeMission extends Mission {
     const r = rng(77);
     // Mesas give cover on the way in.
     for (const [x, z, rad, h] of [[-70, 60, 20, 30], [65, 40, 17, 24], [-25, 105, 12, 18], [120, -60, 24, 36], [-130, -90, 26, 40], [40, -190, 22, 30], [-60, -200, 18, 26], [150, 110, 20, 28], [-170, 90, 22, 34]] as const) {
-      const y = w.heightAt(x, z) - 2;
-      const mesa = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.8, rad, h, 9), w.mat(0xb8623a, { flatShading: true }));
-      mesa.position.set(x, y + h / 2, z);
-      this.scene.add(mesa);
-      const cap = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.82, rad * 0.8, 1.2, 9), w.mat(0xd98a55, { flatShading: true }));
-      cap.position.set(x, y + h, z);
-      this.scene.add(cap);
-      w.addBox(x, y, z, rad * 1.5, h + 0.6, rad * 1.5);
-      this.blockers.push(mesa);
+      this.blockers.push(w.mesa(x, z, rad, h, 0xe6a57a));
     }
     const rocks: { x: number; z: number; s: number }[] = [];
     for (let i = 0; i < 160; i++) {
@@ -110,11 +99,11 @@ export class StrikeMission extends Mission {
       if (Math.hypot(x - C.x, z - C.z) < 50 || Math.hypot(x, z - 175) < 12) continue;
       rocks.push({ x, z, s: 0.6 + r() * 2.2 });
     }
-    w.rocks(rocks, 0xb06a44);
+    w.rocks(rocks, 0xe0b898, 'sandstone_cracks');
 
     // --- Outpost ---
     const gy = 5;
-    const wall = 0x8d8676;
+    const wall = 0xc4bba6;
     for (const [x, z, sx, sz] of [[0, -40, 80, 1.5], [0, 40, 30, 1.5], [-40, 0, 1.5, 80], [40, 0, 1.5, 80], [-27, 40, 26, 1.5], [27, 40, 26, 1.5]] as const) {
       if (z === 40 && x === 0) continue; // gate gap
       this.blockers.push(w.block(C.x + x, gy, C.z + z, sx, 4, sz, wall));
@@ -123,11 +112,11 @@ export class StrikeMission extends Mission {
     // HQ
     const hq = new THREE.Group();
     hq.position.set(C.x, gy, C.z - 10);
-    const main = new THREE.Mesh(new THREE.BoxGeometry(24, 12, 15), w.mat(0x9aa08a));
+    const main = new THREE.Mesh(boxGeo(24, 12, 15, 4), w.pbr('concrete_wall_004', 0xb9bda8));
     main.position.y = 6;
-    const upper = new THREE.Mesh(new THREE.BoxGeometry(12, 5, 9), w.mat(0x7f8674));
+    const upper = new THREE.Mesh(boxGeo(12, 5, 9, 4), w.pbr('concrete_wall_004', 0x9aa08c));
     upper.position.y = 14.5;
-    const band = new THREE.Mesh(new THREE.BoxGeometry(24.2, 1.2, 15.2), w.mat(0xb8312a));
+    const band = new THREE.Mesh(boxGeo(24.2, 1.2, 15.2, 2), w.pbr('corrugated_iron', 0xb8312a, 0.6, { metalness: 0.5 }));
     band.position.y = 9.5;
     const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 9, 6), w.mat(0x30343a));
     mast.position.set(4, 21, 0);
@@ -135,7 +124,7 @@ export class StrikeMission extends Mission {
     flag.position.set(5.6, 24, 0);
     hq.add(main, upper, band, mast, flag);
     for (let i = -2; i <= 2; i++) {
-      const win = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.6, 0.2), w.mat(0x20303f));
+      const win = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.6, 0.2), w.mat(0x16222c, { roughness: 0.08, metalness: 0.9 }));
       win.position.set(i * 4.4, 6, 7.55);
       hq.add(win);
     }
@@ -144,11 +133,11 @@ export class StrikeMission extends Mission {
     // Radar
     const radar = new THREE.Group();
     radar.position.set(C.x - 25, gy, C.z + 16);
-    const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.5, 9, 8), w.mat(0x6f7680));
+    const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.5, 9, 14), w.mat(0x7c848e, { roughness: 0.45, metalness: 0.7 }));
     tower.position.y = 4.5;
     this.dish = new THREE.Group();
     this.dish.position.y = 10;
-    const bowl = new THREE.Mesh(new THREE.SphereGeometry(3.6, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2.6), w.mat(0xdfe5ea, { side: THREE.DoubleSide }));
+    const bowl = new THREE.Mesh(new THREE.SphereGeometry(3.6, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2.6), w.mat(0xdfe5ea, { side: THREE.DoubleSide, roughness: 0.35, metalness: 0.6 }));
     bowl.rotation.x = Math.PI / 2 + 0.5;
     this.dish.add(bowl);
     radar.add(tower, this.dish);
@@ -158,9 +147,9 @@ export class StrikeMission extends Mission {
     for (const [i, x, z] of [[1, 25, 12], [2, 27, -16]] as const) {
       const g = new THREE.Group();
       g.position.set(C.x + x, gy, C.z + z);
-      const tank = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 7, 18), w.mat(0xe8e2d0));
+      const tank = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 7, 32), w.mat(0xe8e2d0, { roughness: 0.38, metalness: 0.55 }));
       tank.position.y = 3.5;
-      const stripe = new THREE.Mesh(new THREE.CylinderGeometry(4.05, 4.05, 1.4, 18), w.mat(0xd9342b));
+      const stripe = new THREE.Mesh(new THREE.CylinderGeometry(4.05, 4.05, 1.4, 32), w.mat(0xd9342b, { roughness: 0.4, metalness: 0.4 }));
       stripe.position.y = 4.5;
       g.add(tank, stripe);
       this.addTarget('fuel', `Fuel ${i}`, g, new THREE.Vector3(C.x + x, gy + 4, C.z + z), 70, 5, true, w.addBox(C.x + x, gy, C.z + z, 7, 7, 7));
@@ -170,12 +159,12 @@ export class StrikeMission extends Mission {
     for (const [i, x, z] of [[1, -36, -36], [2, 36, -36], [3, -36, 36], [4, 36, 36]] as const) {
       const g = new THREE.Group();
       g.position.set(C.x + x, gy, C.z + z);
-      const base = new THREE.Mesh(new THREE.BoxGeometry(3.4, 7, 3.4), w.mat(0x77705f));
+      const base = new THREE.Mesh(boxGeo(3.4, 7, 3.4), w.pbr('concrete_wall_004', 0xa39c88));
       base.position.y = 3.5;
       const head = new THREE.Group();
       head.position.y = 7.9;
-      const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.5, 2.6), w.mat(0x3d4a36));
-      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 3.4, 8), w.mat(0x22262b));
+      const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.5, 2.6), w.mat(0x4a5a40, { roughness: 0.5, metalness: 0.6 }));
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 3.4, 12), w.mat(0x22262b, { roughness: 0.35, metalness: 0.9 }));
       barrel.rotation.x = Math.PI / 2;
       barrel.position.z = 2.4;
       head.add(body, barrel);
@@ -192,7 +181,7 @@ export class StrikeMission extends Mission {
       tent.position.set(C.x + x, gy + 1.7, C.z + z);
       this.scene.add(tent);
     }
-    this.blockers.push(w.block(C.x - 8, gy, C.z + 8, 2.6, 2.4, 6, 0x4a5a3a), w.block(C.x + 8, gy, C.z + 30, 6, 2.4, 2.6, 0x4a5a3a));
+    this.blockers.push(w.block(C.x - 8, gy, C.z + 8, 2.6, 2.4, 6, 0x6f8456, undefined, 'corrugated_iron'), w.block(C.x + 8, gy, C.z + 30, 6, 2.4, 2.6, 0x6f8456, undefined, 'corrugated_iron'));
   }
 
   private addTarget(kind: Kind, name: string, root: THREE.Object3D, pos: THREE.Vector3, hp: number, radius: number, required: boolean, box?: Box) {

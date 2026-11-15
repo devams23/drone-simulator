@@ -60,12 +60,10 @@ export class ReliefMission extends Mission {
     super(...a);
     const w = (this.world = new World(
       this.scene,
+      { id: 'cloud', sun: 0xfff6e8, sunDir: new THREE.Vector3(0.35, 0.7, 0.45), sunIntensity: 3, fogNear: 260, fogFar: 1400 },
       {
-        top: 0x3aa0f0, horizon: 0xd9f1ff, sun: 0xffffff, sunDir: new THREE.Vector3(0.35, 0.7, 0.45),
-        fogNear: 200, fogFar: 800, hemiGround: 0x5c8a6a, sunIntensity: 2.9, hemiIntensity: 1.6,
-      },
-      {
-        amp: 5, base: -3.2, seed: 5.7, noise: 0.12, low: 0x8a7a55, high: 0x6fae4f,
+        amp: 5, base: -3.2, seed: 5.7, tex: ['leafy_grass', 'brown_mud_leaves_01', 'rocky_terrain_02'], shore: WATER_Y, tint: 0x52762e,
+        grass: { color: 0x89aa50, density: 1, size: 0.8 },
         flats: [
           { x: DEPOT.x, z: DEPOT.z, r: 17, h: 7.5 },
           { x: 0, z: -10, r: 95, h: 0.4 },
@@ -73,8 +71,7 @@ export class ReliefMission extends Mission {
       },
     ));
     this.waterY = WATER_Y;
-    w.water(WATER_Y, 0x3f9fc4);
-    w.clouds(18, 31);
+    w.water(WATER_Y, 0x6a8a7a);
     this.pad = w.pad(DEPOT.x, DEPOT.z, '#35c2ff');
     this.spawn.copy(this.pad).y += 0.7;
     this.spawnYaw = 0;
@@ -115,7 +112,7 @@ export class ReliefMission extends Mission {
     this.total = this.roofs.filter((x) => x.target).length;
 
     // Church tower as a landmark.
-    w.block(-52, 0.4, -100, 6, 22, 6, 0xf2ead8);
+    w.block(-52, 0.4, -100, 6, 22, 6, 0xf2ead8, undefined, 'white_rough_plaster');
     const spire = new THREE.Mesh(new THREE.ConeGeometry(5, 9, 4), w.mat(0x4f6f94, { flatShading: true }));
     spire.rotation.y = Math.PI / 4;
     spire.position.set(-52, 26.9, -100);
@@ -129,14 +126,14 @@ export class ReliefMission extends Mission {
       if (w.heightAt(x, z) < WATER_Y + 0.6 || Math.hypot(x - DEPOT.x, z - DEPOT.z) < 18) continue;
       spots.push({ x, z, s: 0.8 + r() * 0.8 });
     }
-    w.pines(spots, 0x3f9a4a);
+    w.pines(spots, 0x597c3e, 0.75, 0.1);
 
     // Half-sunk cars and floating debris.
     for (let i = 0; i < 16; i++) {
       const x = (r() - 0.5) * 190;
       const z = -10 + (r() - 0.5) * 170;
       if (this.roofAt(x, z, 3)) continue;
-      const m = new THREE.Mesh(new THREE.BoxGeometry(1.8 + r() * 2, 0.8, 1.2 + r() * 2.4), w.mat([0xd94a3a, 0xf2c531, 0x8a6a45, 0x4f7fd9][i % 4]));
+      const m = new THREE.Mesh(new THREE.BoxGeometry(1.8 + r() * 2, 0.8, 1.2 + r() * 2.4), w.mat([0xd94a3a, 0xf2c531, 0x8a6a45, 0x4f7fd9][i % 4], { roughness: 0.3, metalness: 0.5 }));
       m.position.set(x, WATER_Y - 0.15, z);
       m.rotation.set((r() - 0.5) * 0.3, r() * 6.28, (r() - 0.5) * 0.3);
       this.scene.add(m);
