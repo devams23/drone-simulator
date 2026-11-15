@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SkyDuty — mission drone simulator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <!-- In-flight overlay -->
+    <div id="hud" hidden>
+      <div id="vignette"></div>
+      <div id="noise"></div>
+      <div id="horizon"><i></i><i></i></div>
+      <div id="reticle"><span class="dot"></span><span class="tick l"></span><span class="tick r"></span><span class="tick b"></span></div>
+      <div id="markers"></div>
+
+      <div id="objective" class="panel">
+        <h4 id="obj-title"></h4>
+        <ul id="obj-lines"></ul>
+        <div id="obj-meter">
+          <label id="obj-meter-label"></label>
+          <div class="bar"><i id="obj-meter-fill"></i></div>
+        </div>
+      </div>
+
+      <div id="center-top">
+        <div id="state"></div>
+        <div id="toasts"></div>
+      </div>
+
+      <div id="topright">
+        <canvas id="radar" width="156" height="156"></canvas>
+        <div id="wind"><span id="wind-arrow">↑</span><span id="wind-txt"></span></div>
+      </div>
+
+      <div id="flight" class="panel">
+        <div class="read"><label>ALT</label><b id="v-alt">0</b><small>m</small></div>
+        <div class="read"><label>SPD</label><b id="v-spd">0</b><small>m/s</small></div>
+        <div class="read"><label>V/S</label><b id="v-vs">0</b><small>m/s</small></div>
+        <div class="read wide"><label>HDG</label><b id="v-hdg">000°</b></div>
+      </div>
+
+      <div id="systems" class="panel">
+        <div class="gauge"><label>BATTERY</label><div class="bar"><i id="b-batt" class="batt"></i></div><b id="t-batt"></b></div>
+        <div class="gauge"><label>HULL</label><div class="bar"><i id="b-hull" class="hull"></i></div><b id="t-hull"></b></div>
+        <div class="gauge"><label id="l-pay">PAYLOAD</label><div class="bar"><i id="b-pay" class="pay"></i></div><b id="t-pay"></b></div>
+        <div id="pay-extra"></div>
+      </div>
+
+      <div id="warn"></div>
+      <div id="hint"></div>
+      <div id="keys">ESC pause · M mute</div>
+    </div>
+
+    <!-- Menus -->
+    <div id="ui"></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
