@@ -180,7 +180,7 @@ export class CanyonMission extends Mission {
       this.scene,
       { id: 'cloud', sun: 0xfff1e0, sunDir: new THREE.Vector3(-0.45, 0.5, -0.7), sunIntensity: 2.3, fogNear: 70, fogFar: 1000, ambient: 1.15 },
       {
-        amp: 60, base: 0, seed: 1, shape: canyonHeight, detail: 340, cliffs: true,
+        amp: 60, base: 0, seed: 1, shape: canyonHeight, detail: 460, cliffs: true,
         tex: ['leafy_grass', 'river_small_rocks', 'mossy_rock'], shore: 1.6, tint: 0x6f8640, grade: 0xe6edf0,
         grass: { color: 0x93a64c, density: 1, size: 0.62 }, patch: 0.64,
         flats: [{ x: PX, z: PZ, r: 9, h: PH }],

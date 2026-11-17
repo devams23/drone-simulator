@@ -49,6 +49,8 @@ export interface TerrainCfg {
   detail?: number;
   /** Project the rock layer from the side too, so tall cliffs don't smear. */
   cliffs?: boolean;
+  /** A ring of ridged mountains around the valley: rises from `from` metres out, peaks near `height`. */
+  mountains?: { from: number; height: number };
 }
 
 /** Graphics settings shared with the renderer. */
@@ -98,9 +100,9 @@ function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => 
 }
 
 export class World {
-  readonly size = 760;
+  readonly size = 1400;
   /** Playable radius; the drone is pushed back beyond it. */
-  readonly bounds = 300;
+  readonly bounds = 560;
   boxes: Box[] = [];
   sun: THREE.DirectionalLight;
   sunDir = new THREE.Vector3();
@@ -148,7 +150,9 @@ export class World {
     if (t.shore !== undefined) b = Math.max(b, 1 - smooth(t.shore + 0.3, t.shore + 1.6, h));
     const e = 2;
     const slope = Math.hypot(this.heightAt(x + e, z) - this.heightAt(x - e, z), this.heightAt(x, z + e) - this.heightAt(x, z - e)) / (2 * e);
-    const high = (h - t.base) / Math.max(1, t.amp * 1.5);
+    // Mountains stay green on their lower slopes; only the tops and steep faces turn to rock.
+    const reach = t.mountains ? t.mountains.height * 0.75 * smooth(t.mountains.from, t.mountains.from + 320, Math.hypot(x, z)) : 0;
+    const high = (h - t.base) / Math.max(1, t.amp * 1.5 + reach);
     const c = Math.max(smooth(0.2, 0.36, slope), smooth(0.8, 1.0, high + (noise2(x * 0.03, z * 0.03) - 0.5) * 0.3));
     return [b, c];
   }
@@ -254,8 +258,8 @@ export class World {
       m.userData.noCast = true;
       this.scene.add(m);
     };
-    build(this.size, t.detail ?? 220, 0, 0);
-    build(3600, 144, this.size / 2 - 26, 0.5);
+    build(this.size, t.detail ?? 300, 0, 0);
+    build(4400, 176, this.size / 2 - 26, 0.5);
   }
 
   private buildGrass(cfg: NonNullable<TerrainCfg['grass']>) {
@@ -374,7 +378,21 @@ export class World {
           0.55 * Math.sin(x * 0.011 + s) * Math.cos(z * 0.013 - s * 1.7) +
           0.3 * Math.sin(x * 0.027 + z * 0.019 + s * 2.3) +
           0.12 * Math.sin(x * 0.071 + s) * Math.sin(z * 0.063 - s));
+    if (t.mountains) h += this.mountain(x, z, t.mountains);
     return this.flatten(x, z, h);
+  }
+
+  /** Valley walls: a concave rise into ridged peaks, with a few low passes between them. */
+  private mountain(x: number, z: number, m: { from: number; height: number }) {
+    const r = Math.hypot(x, z);
+    const rise = smooth(m.from, m.from + 320, r);
+    if (rise <= 0) return 0;
+    const s = this.terrain.seed;
+    const a = Math.atan2(z, x);
+    const ridge = 1 - Math.abs(noise2(x * 0.0075 + s, z * 0.0075 - s) * 2 - 1);
+    const pass = 0.4 + 0.6 * smooth(-0.7, 0.4, Math.sin(a * 3 + s) + 0.45 * Math.sin(a * 7 - s * 2));
+    const crag = fbm2(x * 0.024 + s, z * 0.024 - s) - 0.5;
+    return rise * rise * m.height * pass * (0.5 + 0.5 * ridge) + rise * 30 * crag;
   }
 
   private flatten(x: number, z: number, h: number) {

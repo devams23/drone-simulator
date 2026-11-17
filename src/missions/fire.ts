@@ -45,7 +45,7 @@ export class FireMission extends Mission {
       this.scene,
       { id: 'day', sun: 0xfff1dc, sunDir: new THREE.Vector3(0.5, 0.42, -0.6), sunIntensity: 3.1, fogNear: 240, fogFar: 1300 },
       {
-        amp: 13, base: 2, seed: 3.1, tex: ['leafy_grass', 'forest_ground_04', 'rocky_terrain_02'], shore: 4, tint: 0x55782f,
+        amp: 13, base: 2, seed: 3.1, mountains: { from: 320, height: 210 }, tex: ['leafy_grass', 'forest_ground_04', 'rocky_terrain_02'], shore: 4, tint: 0x55782f,
         grass: { color: 0x8fae52, density: 1, size: 0.85 },
         flats: [
           { x: 0, z: 0, r: 52, h: 9 },
@@ -85,6 +85,15 @@ export class FireMission extends Mission {
       const z = (r() - 0.5) * 620;
       if (Math.hypot(x, z) < 60 || Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r * 1.55 || Math.hypot(x - 95, z - 105) < 20) continue;
       spots.push({ x, z, s: 0.8 + r() * 0.9 });
+    }
+    // ...and up the valley walls, thinning out toward the bare tops.
+    for (let i = 0; i < 6000 && spots.length < 2000; i++) {
+      const a = r() * Math.PI * 2;
+      const d = 300 + r() * 420;
+      const x = Math.cos(a) * d;
+      const z = Math.sin(a) * d;
+      if (w.heightAt(x, z) > 150 + r() * 60) continue;
+      spots.push({ x, z, s: 0.9 + r() * 1.1 });
     }
     w.pines(spots, 0x5d8040, 0.5, 0.4);
     const stones: { x: number; z: number; s: number }[] = [];

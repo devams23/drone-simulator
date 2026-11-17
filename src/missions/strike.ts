@@ -72,7 +72,7 @@ export class StrikeMission extends Mission {
       this.scene,
       { id: 'gold', sun: 0xffe3bd, sunDir: new THREE.Vector3(-0.55, 0.38, -0.5), sunIntensity: 3.3, fogNear: 260, fogFar: 1400 },
       {
-        amp: 9, base: 0, seed: 8.4, tex: ['sand_01', 'gravelly_sand', 'sandstone_cracks'],
+        amp: 9, base: 0, seed: 8.4, mountains: { from: 340, height: 160 }, tex: ['sand_01', 'gravelly_sand', 'sandstone_cracks'],
         grade: 0xffdcb4,
         flats: [
           { x: 0, z: 175, r: 14, h: 8 },
@@ -98,6 +98,11 @@ export class StrikeMission extends Mission {
       const z = (r() - 0.5) * 640;
       if (Math.hypot(x - C.x, z - C.z) < 50 || Math.hypot(x, z - 175) < 12) continue;
       rocks.push({ x, z, s: 0.5 + r() * r() * 3.4 });
+    }
+    for (let i = 0; i < 360; i++) {
+      const a = r() * Math.PI * 2;
+      const d = 320 + r() * 400;
+      rocks.push({ x: Math.cos(a) * d, z: Math.sin(a) * d, s: 1 + r() * r() * 6 });
     }
     w.rocks(rocks, 0xe0b898, 'sandstone_cracks');
 

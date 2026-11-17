@@ -62,7 +62,7 @@ export class ReliefMission extends Mission {
       this.scene,
       { id: 'cloud', sun: 0xfff6e8, sunDir: new THREE.Vector3(0.35, 0.7, 0.45), sunIntensity: 3, fogNear: 260, fogFar: 1400 },
       {
-        amp: 5, base: -3.2, seed: 5.7, tex: ['leafy_grass', 'brown_mud_leaves_01', 'rocky_terrain_02'], shore: WATER_Y, tint: 0x52762e,
+        amp: 5, base: -3.2, seed: 5.7, mountains: { from: 340, height: 180 }, tex: ['leafy_grass', 'brown_mud_leaves_01', 'rocky_terrain_02'], shore: WATER_Y, tint: 0x52762e,
         grass: { color: 0x89aa50, density: 1, size: 0.8 },
         flats: [
           { x: DEPOT.x, z: DEPOT.z, r: 17, h: 7.5 },
@@ -125,6 +125,15 @@ export class ReliefMission extends Mission {
       const z = (r() - 0.5) * 640;
       if (w.heightAt(x, z) < WATER_Y + 0.6 || Math.hypot(x - DEPOT.x, z - DEPOT.z) < 18) continue;
       spots.push({ x, z, s: 0.8 + r() * 0.8 });
+    }
+    for (let i = 0; i < 6000 && spots.length < 1300; i++) {
+      const a = r() * Math.PI * 2;
+      const d = 320 + r() * 400;
+      const x = Math.cos(a) * d;
+      const z = Math.sin(a) * d;
+      const h = w.heightAt(x, z);
+      if (h < WATER_Y + 1 || h > 140 + r() * 60) continue;
+      spots.push({ x, z, s: 0.9 + r() * 1.0 });
     }
     w.pines(spots, 0x597c3e, 0.75, 0.1);
 

@@ -12,7 +12,7 @@ export interface Env {
 }
 
 const G = 9.81;
-const CEILING = 115;
+const CEILING = 260;
 const nrm = new THREE.Vector3();
 const CHASE_SCALE = 1.7;
 const tmp = new THREE.Vector3();
