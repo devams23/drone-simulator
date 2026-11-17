@@ -97,7 +97,7 @@ export class ReliefMission extends Mission {
         const key = `${gx},${gz}`;
         const big = targets.has(key);
         const isTarget = big && !Mission.calm;
-        if (!isTarget && r() < 0.22) continue;
+        if (r() < 0.22 && !big) continue; // the big flat roofs always stand: courses land on them
         const x = gx * 27 + (r() - 0.5) * 7;
         const z = -10 + gz * 27 + (r() - 0.5) * 7;
         const hw = big ? 11 + r() * 2 : 8 + r() * 4;

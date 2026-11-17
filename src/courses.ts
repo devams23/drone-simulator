@@ -76,6 +76,46 @@ export const COURSES: CourseDef[] = [
       { kind: 'ring', at: [-53.2, 4, -195], r: 3.2 },
     ],
   },
+  // ---------------------------------------------------------------- courier
+  {
+    id: 'courier-1', mode: 'courier', world: 'fire', name: 'Village Drop', par: 55,
+    line: 'Two parcels from the pad to the square, then down to the lakeshore.',
+    steps: [
+      { kind: 'pickup', at: [82, 92] },
+      { kind: 'ring', at: [55, 9, 62], r: 4.5 },
+      { kind: 'drop', at: [8, 6], r: 3.5 },
+      { kind: 'pickup', at: [-8, -6] },
+      { kind: 'ring', at: [-40, 8, 20], r: 4.5 },
+      { kind: 'drop', at: [-72, 30], r: 3.5 },
+    ],
+  },
+  {
+    id: 'courier-2', mode: 'courier', world: 'relief', name: 'Rooftop Relay', par: 80,
+    line: 'Three parcels, flat roof to flat roof, across a town standing in water.',
+    steps: [
+      { kind: 'pickup', at: [-8, 140] },
+      { kind: 'drop', at: [-27, 44], r: 2.6 },
+      { kind: 'pickup', at: [0, -10] },
+      { kind: 'drop', at: [81, 17], r: 2.6 },
+      { kind: 'pickup', at: [54, -37] },
+      { kind: 'drop', at: [-54, -64], r: 2.6 },
+    ],
+  },
+  {
+    id: 'courier-3', mode: 'courier', world: 'canyon', name: 'River Line', par: 52,
+    line: 'One parcel, low through the gorge gates, keeping it out of the water, then up to the far rim.',
+    steps: [
+      { kind: 'pickup', at: [108, 100] },
+      { kind: 'ring', at: [65, 8, 80], r: 3.6 },
+      { kind: 'ring', at: [60, 8, 55], r: 3.6 },
+      { kind: 'ring', at: [30, 9, 30], r: 3.6 },
+      { kind: 'ring', at: [20, 8, 5], r: 3.6 },
+      { kind: 'ring', at: [-5, 8, -20], r: 3.6 },
+      { kind: 'ring', at: [-3, 8, -45], r: 3.6 },
+      { kind: 'ring', at: [-15, 9, -70], r: 3.6 },
+      { kind: 'drop', at: [-65, -75], r: 3.5 },
+    ],
+  },
 ];
 
 export const ladder = (mode: ModeId) => COURSES.filter((c) => c.mode === mode);
