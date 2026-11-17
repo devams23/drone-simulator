@@ -5,6 +5,7 @@ import { DRONES, MISSIONS, STAT_LABELS, physics, type DroneSpec, type MissionCar
 import { Game, type Quality, type Result, type View } from './game';
 import { Garage, type Shot } from './garage';
 import type { Scheme } from './input';
+import qrcode from 'qrcode-generator';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ui = document.getElementById('ui')!;
@@ -12,7 +13,7 @@ const hudEl = document.getElementById('hud')!;
 const game = new Game(canvas);
 let garage: Garage | undefined;
 
-type Screen = 'loading' | 'intro' | 'title' | 'missions' | 'roam' | 'settings' | 'hangar' | 'brief' | 'pause' | 'debrief' | 'none';
+type Screen = 'loading' | 'intro' | 'title' | 'missions' | 'roam' | 'settings' | 'hangar' | 'brief' | 'pause' | 'debrief' | 'phone' | 'none';
 let screen: Screen = 'none';
 let mission: MissionCard = MISSIONS[0];
 let drone: DroneSpec = DRONES[0];
@@ -100,6 +101,7 @@ function title() {
         <button data-act="missions" autofocus><span class="t">Operations</span><small>Fire, strike and relief missions</small></button>
         <button data-act="roam"><span class="t">Free roam</span><small>No objectives, no clock</small></button>
         <button data-act="settings"><span class="t">Settings</span><small>Graphics and controls</small></button>
+        <button data-act="phone"><span class="t">Phone remote</span><small>Fly with your phone as the transmitter</small></button>
       </nav>
       <footer class="status">
         <span><i class="dot"></i>On the pad · <b>${drone.name}</b></span>
@@ -327,6 +329,61 @@ function settings() {
   );
 }
 
+/** Shows a QR code that opens the phone remote on the same Wi-Fi. */
+function phone() {
+  const from = screen === 'pause' ? 'pause' : 'title';
+  if (from === 'title') garage?.setAccent(ACCENT);
+  const status = () =>
+    game.input.remote.connected
+      ? '<span class="link on"><i></i>Phone connected</span>'
+      : '<span class="link"><i></i>Waiting for your phone</span>';
+  show(
+    'phone',
+    `<section class="screen center">
+      <div class="modal phone">
+        <div class="qr" id="qr"><span>Finding your network…</span></div>
+        <div class="how">
+          <div class="label">Controller</div>
+          <h2>Phone remote</h2>
+          <ol>
+            <li>Put the phone on the same Wi-Fi as this PC.</li>
+            <li>Scan the code with the phone camera.</li>
+            <li>Tap Start and turn the phone sideways.</li>
+          </ol>
+          <p class="url" id="qr-url"></p>
+          <div id="qr-status">${status()}</div>
+          <div class="actions"><button class="btn primary" data-act="${from === 'pause' ? 'pause-back' : 'title'}" data-back autofocus>Done <span class="key">ESC</span></button></div>
+        </div>
+      </div>
+    </section>`,
+    from === 'pause',
+  );
+  fetch('/__skyduty/lan')
+    .then((r) => (r.ok ? r.json() : Promise.reject()))
+    .then((info: { url: string | null }) => {
+      const box = document.getElementById('qr');
+      if (!box) return;
+      if (!info.url) {
+        box.innerHTML = '<span>No network found. Start the game with <b>npm run dev</b> on a PC that is on Wi-Fi.</span>';
+        return;
+      }
+      const q = qrcode(0, 'M');
+      q.addData(info.url);
+      q.make();
+      box.innerHTML = q.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+      document.getElementById('qr-url')!.textContent = info.url;
+    })
+    .catch(() => {
+      const box = document.getElementById('qr');
+      if (box) box.innerHTML = '<span>Phone control needs the dev server: run <b>npm run dev</b>.</span>';
+    });
+  const tick = setInterval(() => {
+    const el = document.getElementById('qr-status');
+    if (!el || screen !== 'phone') return clearInterval(tick);
+    el.innerHTML = status();
+  }, 500);
+}
+
 function pause() {
   game.setPaused(true);
   show(
@@ -342,6 +399,7 @@ function pause() {
         <div class="actions">
           <button class="btn primary" data-act="resume" autofocus>Resume <span class="key">ESC</span></button>
           <button class="btn" data-act="${game.free ? 'free' : 'launch'}">Restart</button>
+          <button class="btn" data-act="phone">Phone remote</button>
           <button class="btn" data-act="quit">Exit to hangar</button>
         </div>
       </div>
@@ -432,6 +490,12 @@ ui.addEventListener('click', (e) => {
       break;
     case 'settings':
       settings();
+      break;
+    case 'phone':
+      phone();
+      break;
+    case 'pause-back':
+      pause();
       break;
     case 'pick-mission':
       roam = false;
@@ -537,7 +601,8 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyM') game.sound.toggleMute();
   if (e.code === 'KeyV' && screen === 'none' && game.mode === 'fly') game.toggleView();
   if (e.code === 'Escape' || e.code === 'KeyP') {
-    if (screen === 'pause') resume();
+    if (screen === 'phone' && game.paused) pause();
+    else if (screen === 'pause') resume();
     else if (screen === 'none' && game.mode === 'fly') pause();
     else if (e.code === 'Escape') (ui.querySelector('[data-back]') as HTMLElement | null)?.click();
   }
@@ -576,7 +641,7 @@ function boot() {
     roam = true;
     place = PLACES.find((p) => p.id === (qs.get('hangar') ?? qs.get('fly'))) ?? PLACES[0];
   }
-  const screens: Record<string, () => void> = { title, missions, roam: roamScreen, settings, brief };
+  const screens: Record<string, () => void> = { title, missions, roam: roamScreen, settings, brief, phone };
   if (hangId) {
     drone = pick(hangId);
     openWorld(hangId);

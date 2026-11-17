@@ -89,6 +89,9 @@ export class Game {
   /** Set while the garage is drawn over the world: skip simulating and rendering it. */
   halt = false;
   onEnd: (r: Result) => void = () => {};
+  /** Called when a phone remote links up (the menu shows it). */
+  onRemote: () => void = () => {};
+  private teleT = 0;
 
   private missionId?: WorldId;
   private last = 0;
@@ -112,6 +115,10 @@ export class Game {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.input = new Input(canvas);
+    this.input.remote.onConnect = () => {
+      this.hud.toast('Phone remote connected', 'good');
+      this.onRemote();
+    };
     window.addEventListener('resize', () => this.resize());
     const forced = new URLSearchParams(location.search).get('q') as Quality | null;
     const saved = (forced ?? localStorage.getItem('skyduty.quality')) as Quality | null;
@@ -205,6 +212,9 @@ export class Game {
     d.pos.copy(m.spawn);
     d.yaw = m.spawnYaw;
     d.onDamage = (kind) => {
+      const r = this.input.remote;
+      if (kind === 'dead') r.send({ buzz: [120, 60, 220] });
+      else if (kind !== 'heat') r.send({ buzz: kind === 'shot' ? 70 : 45 });
       if (kind === 'dead') {
         this.sound.crash();
         this.fx.explosion(d.pos, 1.2);
@@ -361,6 +371,17 @@ export class Game {
     }
 
     this.hud.update(d, m, this.camera, dt, this.input.scheme, c, this.free);
+    if (this.input.remote.connected && (this.teleT -= dt) <= 0) {
+      this.teleT = 0.25;
+      const ground = Math.max(m.world.heightAt(d.pos.x, d.pos.z), m.waterY ?? -1e9);
+      this.input.remote.send({
+        alt: Math.max(0, d.pos.y - ground - 0.7),
+        spd: Math.hypot(d.vel.x, d.vel.z) * 3.6,
+        bat: d.battery,
+        hull: d.hull / d.ph.hull,
+        view: this.view,
+      });
+    }
 
     if (flying && this.free) {
       // Free flight never ends: after a crash, put a fresh drone on the pad.

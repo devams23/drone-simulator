@@ -1,4 +1,5 @@
-// Keyboard, mouse and gamepad, mapped to drone stick axes.
+// Keyboard, mouse, gamepad and phone remote, mapped to drone stick axes.
+import { Remote } from './remote';
 
 export type Scheme = 'rc' | 'gamer';
 
@@ -24,6 +25,7 @@ export class Input {
   private mb = [false, false, false];
   /** Set once per press of the camera-view button (gamepad Y, phone). */
   viewToggle = false;
+  readonly remote = new Remote();
   private padView = false;
 
   constructor(private canvas: HTMLCanvasElement) {
@@ -114,6 +116,19 @@ export class Input {
       if (b(12)) c.gimbal += 1;
       if (b(13)) c.gimbal -= 1;
     }
+    // Phone remote (Mode 2). Its throttle stick stays put; the middle is hover.
+    const r = this.remote.connected ? this.remote.pad : undefined;
+    if (r) {
+      c.throttle += Math.abs(r.thr) < 0.06 ? 0 : r.thr;
+      c.yaw += r.yaw;
+      c.pitch += r.pitch;
+      c.roll += r.roll;
+      c.gimbal += r.gim;
+      c.primary = c.primary || r.pri;
+      c.secondary = c.secondary || r.sec;
+    }
+    if (this.remote.takeView()) this.viewToggle = true;
+
     const clamp = (v: number) => Math.max(-1, Math.min(1, v));
     c.throttle = clamp(c.throttle);
     c.yaw = clamp(c.yaw);

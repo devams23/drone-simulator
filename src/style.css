@@ -503,3 +503,20 @@ kbd { justify-self: start; font: 500 11.5px/1 var(--mono); padding: 5px 8px; bor
   .switch { margin-top: 8px; padding: 7px 12px; }
   .brief .lede .sub { margin-top: 4px; }
 }
+
+/* Phone remote pairing */
+.modal.phone { width: min(720px, 100%); grid-template-columns: auto 1fr; align-items: center; gap: 30px; }
+.modal.phone .qr {
+  width: clamp(150px, 30vh, 210px); aspect-ratio: 1; padding: 12px; border-radius: 14px; background: #f4f6f7;
+  display: grid; place-items: center; color: #3a4650; font-size: 12px; line-height: 1.45; text-align: center;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+}
+.modal.phone .qr svg { width: 100%; height: 100%; display: block; }
+.modal.phone h2 { font-size: clamp(30px, 4vw, 40px); }
+.modal.phone ol { margin: 14px 0 0; padding-left: 18px; color: var(--ink-2); font-size: 14px; line-height: 1.7; }
+.modal.phone .url { margin: 10px 0 8px; font-size: 12px; color: var(--ink-2); letter-spacing: 0.04em; word-break: break-all; }
+.modal.phone .actions { margin-top: 14px; }
+.link { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-2); }
+.link i { width: 8px; height: 8px; border-radius: 50%; background: #e7a35c; box-shadow: 0 0 8px #e7a35c; animation: blink 1.4s steps(2) infinite; }
+.link.on i { background: var(--good); box-shadow: 0 0 8px var(--good); animation: none; }
+@media (max-width: 640px) { .modal.phone { grid-template-columns: 1fr; justify-items: center; } }
