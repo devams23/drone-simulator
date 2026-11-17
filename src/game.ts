@@ -221,9 +221,11 @@ export class Game {
       let px: number | undefined, pz = 0;
       for (const s of def.steps) {
         const x = s.at[0], z = s.at[s.at.length - 1];
-        clearings.push({ x, z, r: s.kind === 'ring' || s.kind === 'slot' ? 14 : 9 });
+        // Threading keeps the trees close: the squeeze is the point.
+        const tight = def.mode === 'thread';
+        clearings.push({ x, z, r: tight ? 6 : s.kind === 'ring' ? 14 : 9 });
         // ...and along the line between steps, so canopies don't hang into it.
-        if (px !== undefined) for (const t of [0.25, 0.5, 0.75]) clearings.push({ x: px + (x - px) * t, z: pz + (z - pz) * t, r: 8 });
+        if (px !== undefined) for (const t of [0.25, 0.5, 0.75]) clearings.push({ x: px + (x - px) * t, z: pz + (z - pz) * t, r: tight ? 4 : 8 });
         px = x;
         pz = z;
       }
