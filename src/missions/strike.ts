@@ -107,6 +107,10 @@ export class StrikeMission extends Mission {
     w.rocks(rocks, 0xe0b898, 'sandstone_cracks');
 
     // --- Outpost ---
+    if (Mission.calm) {
+      this.dish = new THREE.Group();
+      return;
+    }
     const gy = 5;
     const wall = 0xc4bba6;
     for (const [x, z, sx, sz] of [[0, -40, 80, 1.5], [0, 40, 30, 1.5], [-40, 0, 1.5, 80], [40, 0, 1.5, 80], [-27, 40, 26, 1.5], [27, 40, 26, 1.5]] as const) {

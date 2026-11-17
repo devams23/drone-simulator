@@ -115,6 +115,8 @@ export class FireMission extends Mission {
       this.markers.push(marker);
       this.sites.push({ pos: new THREE.Vector3(x, y, z), intensity, active: intensity > 0, dormant: intensity === 0, house, wet: 0, light, marker });
     };
+    this.lakeMarker = { pos: new THREE.Vector3(LAKE.x, this.waterY + 3, LAKE.z), icon: '💧', color: '#49c6ff', label: 'Lake', visible: false };
+    if (Mission.calm) return;
     for (const [i, level] of [[1, 0.75], [5, 0.65], [8, 0.7], [3, 0]] as const) {
       const h = houses[i];
       mk(h.x, h.top - 1, h.z, true, level);
@@ -122,8 +124,6 @@ export class FireMission extends Mission {
     for (const [x, z, level] of [[-70, -95, 0.8], [85, -65, 0.7], [-40, 100, 0.65], [120, 10, 0], [-95, -30, 0]] as const) {
       mk(x, w.heightAt(x, z) + 2, z, false, level);
     }
-
-    this.lakeMarker = { pos: new THREE.Vector3(LAKE.x, this.waterY + 3, LAKE.z), icon: '💧', color: '#49c6ff', label: 'Lake', visible: false };
     this.markers.push(this.lakeMarker);
   }
 

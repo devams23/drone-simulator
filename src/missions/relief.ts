@@ -95,14 +95,15 @@ export class ReliefMission extends Mission {
     for (let gx = -3; gx <= 3; gx++) {
       for (let gz = -3; gz <= 2; gz++) {
         const key = `${gx},${gz}`;
-        const isTarget = targets.has(key);
+        const big = targets.has(key);
+        const isTarget = big && !Mission.calm;
         if (!isTarget && r() < 0.22) continue;
         const x = gx * 27 + (r() - 0.5) * 7;
         const z = -10 + gz * 27 + (r() - 0.5) * 7;
-        const hw = isTarget ? 11 + r() * 2 : 8 + r() * 4;
-        const hd = isTarget ? 10 + r() * 2 : 7 + r() * 4;
-        const hh = isTarget ? 7 + r() * 3 : 6 + r() * 6;
-        const flat = isTarget || r() < 0.3;
+        const hw = big ? 11 + r() * 2 : 8 + r() * 4;
+        const hd = big ? 10 + r() * 2 : 7 + r() * 4;
+        const hh = big ? 7 + r() * 3 : 6 + r() * 6;
+        const flat = big || r() < 0.3;
         const h = w.house(x, z, hw, hd, hh, walls[Math.floor(r() * walls.length)], roofCols[Math.floor(r() * roofCols.length)], flat, 0.4);
         const roof: Roof = { x, z, w: hw, d: hd, top: h.top, target: isTarget, delivered: false };
         if (isTarget) this.dressTarget(roof);
@@ -149,7 +150,7 @@ export class ReliefMission extends Mission {
     }
 
     this.depotMarker = { pos: new THREE.Vector3(DEPOT.x, this.pad.y + 5, DEPOT.z), icon: '📦', color: '#35c2ff', label: 'Depot', visible: false };
-    this.markers.push(this.depotMarker);
+    if (!Mission.calm) this.markers.push(this.depotMarker);
 
     this.aimMat = new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.9, depthTest: false, fog: false });
     this.aimRing = new THREE.Mesh(new THREE.RingGeometry(1.5, 1.9, 36), this.aimMat);

@@ -31,6 +31,8 @@ export interface Payload {
 export type Toast = (text: string, kind?: 'info' | 'good' | 'bad') => void;
 
 export abstract class Mission {
+  /** Peaceful worlds: no fires, guns or stranded families. The operations are parked for now. */
+  static calm = true;
   abstract readonly id: WorldId;
   world!: World;
   markers: Marker[] = [];

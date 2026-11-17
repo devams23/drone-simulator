@@ -1,7 +1,7 @@
 // Menus and the player journey: garage → operation or free roam → hangar →
 // briefing → flight → debrief. Every menu sits over a live 3D drone studio.
 import './style.css';
-import { DRONES, MISSIONS, STAT_LABELS, physics, type DroneSpec, type MissionCard, type MissionId, type WorldId } from './data';
+import { DRONES, STAT_LABELS, physics, type DroneSpec, type WorldId } from './data';
 import { Game, type Quality, type Result, type View } from './game';
 import { Garage, type Shot } from './garage';
 import type { Scheme } from './input';
@@ -13,17 +13,14 @@ const hudEl = document.getElementById('hud')!;
 const game = new Game(canvas);
 let garage: Garage | undefined;
 
-type Screen = 'loading' | 'intro' | 'title' | 'missions' | 'roam' | 'settings' | 'hangar' | 'brief' | 'pause' | 'debrief' | 'phone' | 'none';
+type Screen = 'loading' | 'intro' | 'title' | 'roam' | 'settings' | 'hangar' | 'brief' | 'pause' | 'debrief' | 'phone' | 'none';
 let screen: Screen = 'none';
-let mission: MissionCard = MISSIONS[0];
-let drone: DroneSpec = DRONES[0];
-/** True when the player came in through Free roam rather than an operation. */
-let roam = false;
+let drone: DroneSpec = DRONES[1];
 let place: Place | undefined;
 let lastResult: Result | undefined;
 
 const ACCENT = '#7cc9c0';
-const SHOTS: Partial<Record<Screen, Shot>> = { intro: 'intro', title: 'title', settings: 'title', missions: 'missions', roam: 'roam', hangar: 'hangar', brief: 'brief' };
+const SHOTS: Partial<Record<Screen, Shot>> = { intro: 'intro', title: 'title', settings: 'title', roam: 'roam', hangar: 'hangar', brief: 'brief' };
 
 interface Place {
   id: WorldId;
@@ -118,8 +115,7 @@ function title() {
       <div class="home-body">
         <div class="hero"><p>FPV drone flight</p><h1>SkyDuty</h1></div>
         <nav class="menu">
-          ${menuItem('missions', ICON.ops, 'Operations', 'Fire, strike and relief missions', true)}
-          ${menuItem('roam', ICON.roam, 'Free roam', 'No objectives, no clock')}
+          ${menuItem('roam', ICON.roam, 'Free roam', 'No objectives, no clock', true)}
           ${menuItem('settings', ICON.settings, 'Settings', 'Graphics, camera and controls')}
           ${menuItem('phone', ICON.phone, 'Phone remote', 'Use your phone as the transmitter')}
         </nav>
@@ -141,33 +137,7 @@ function rail(head: string, sub: string, cards: string) {
     <div class="rail">${cards}</div>`;
 }
 
-function missions() {
-  roam = false;
-  garage?.setAccent(mission.hue);
-  show(
-    'missions',
-    `<section class="screen pick">
-      ${top(['Operations'])}
-      ${rail(
-        'Operations',
-        'Each one has its own terrain, tool and fleet.',
-        MISSIONS.map(
-          (m) => `<button class="card" style="--hue:${m.hue}" data-act="pick-mission" data-id="${m.id}" data-hue="${m.hue}" ${m.id === mission.id ? 'autofocus' : ''}>
-            <span class="card-top"><span class="ico">${ICON[m.id]}</span>${rating(best[m.id] ?? 0)}</span>
-            <span class="role">${m.role}</span>
-            <b>${m.name}</b>
-            <span class="blurb">${m.blurb}</span>
-            <span class="foot"><span>${m.objective}</span><span class="chev">${ICON.chev}</span></span>
-          </button>`,
-        ).join(''),
-      )}
-      <div class="actions"><button class="btn" data-act="title" data-back>Back <span class="key">ESC</span></button><span class="grow"></span><span class="hint">← → browse · Enter select</span></div>
-    </section>`,
-  );
-}
-
 function roamScreen() {
-  roam = true;
   garage?.setAccent(ACCENT);
   show(
     'roam',
@@ -191,12 +161,6 @@ function roamScreen() {
   );
 }
 
-function payloadFact(d: DroneSpec) {
-  if (d.mission === 'fire') return ['Water tank', `${d.capacity} L`];
-  if (d.mission === 'strike') return ['Cannon / RKT', `${d.capacity} / ${d.rockets}`];
-  return ['Crates / trip', String(d.capacity)];
-}
-
 function unit(d: DroneSpec) {
   const ph = physics(d);
   return `<button class="unit ${d.id === drone.id ? 'on' : ''}" data-act="pick-drone" data-id="${d.id}">
@@ -205,25 +169,20 @@ function unit(d: DroneSpec) {
 }
 
 function hangar() {
-  const fleet = roam ? DRONES : DRONES.filter((d) => d.mission === mission.id);
-  if (!fleet.includes(drone)) drone = fleet[1] ?? fleet[0];
-  const hue = roam ? ACCENT : mission.hue;
+  const fleet = DRONES;
+  const hue = ACCENT;
   const ph = physics(drone);
-  const [payName, payValue] = payloadFact(drone);
-  const role = MISSIONS.find((m) => m.id === drone.mission)!.role;
   garage?.setDrone(drone);
   garage?.setAccent(hue);
-  const list = roam
-    ? MISSIONS.map((m) => `<div class="grp">${m.role}</div>${DRONES.filter((d) => d.mission === m.id).map(unit).join('')}`).join('')
-    : fleet.map(unit).join('');
+  const list = fleet.map(unit).join('');
   show(
     'hangar',
     `<section class="screen" style="--hue:${hue}">
-      ${top(roam ? ['Free roam', place?.name ?? '', 'Hangar'] : ['Operations', mission.name, 'Hangar'])}
+      ${top(['Free roam', place?.name ?? '', 'Hangar'])}
       <div class="hangar">
         <aside class="panel fleet"><h3 class="label">Fleet <em>${fleet.length}</em></h3>${list}</aside>
         <div class="ident">
-          <div class="label">${drone.tier} class · ${role}</div>
+          <div class="label">${drone.tier} · ${drone.code}</div>
           <h2>${drone.name}</h2>
           <p>${drone.tagline}</p>
         </div>
@@ -235,16 +194,15 @@ function hangar() {
           <div class="facts">
             <div><b>${Math.round(ph.maxSpeed * 3.6)}</b>Top km/h</div>
             <div><b>${Math.round(ph.batterySec / 6) / 10}</b>Endurance min</div>
-            <div><b>${ph.hull}</b>Hull points</div>
-            <div><b>${payValue}</b>${payName}</div>
+            <div><b>${Math.round(ph.climb * 10) / 10}</b>Climb m/s</div>
+            <div><b>${Math.round((ph.yawRate * 180) / Math.PI)}</b>Yaw °/s</div>
           </div>
         </aside>
       </div>
       <div class="actions">
-        <button class="btn" data-act="${roam ? 'roam' : 'missions'}" data-back>Back <span class="key">ESC</span></button>
+        <button class="btn" data-act="roam" data-back>Back <span class="key">ESC</span></button>
         <span class="grow"></span>
-        <span class="hint">${roam ? 'Any airframe, any location' : `${fleet.length} airframes cleared for this operation`}</span>
-        <button class="btn primary" data-act="brief" autofocus>${roam ? 'Pre-flight' : 'Briefing'} <span class="key">↵</span></button>
+        <button class="btn primary" data-act="brief" autofocus>Pre-flight <span class="key">↵</span></button>
       </div>
     </section>`,
   );
@@ -257,49 +215,37 @@ function controlsHtml(s: Scheme) {
           ['W / S', 'Throttle up / down (left stick)'],
           ['A / D', 'Yaw left / right (left stick)'],
           ['↑ ↓ ← →', 'Pitch and roll (right stick)'],
-          ['Space / F', 'Use tool'],
         ]
       : [
           ['W A S D', 'Fly forward, back, strafe'],
           ['Space / Shift', 'Climb / descend'],
           ['Mouse / ← →', 'Yaw'],
-          ['F / Click', 'Use tool'],
         ];
-  rows.push(['Q / E', 'Camera tilt down / up'], ['G / R-click', 'Secondary (rockets)'], ['V / M', 'Chase camera / mute'], ['Esc', 'Pause']);
+  rows.push(['Q / E', 'Camera tilt down / up'], ['V / M', 'Chase camera / mute'], ['Esc', 'Pause']);
   return `<div class="keys">${rows.map(([k, v]) => `<kbd>${k}</kbd><span>${v}</span>`).join('')}</div>
     <button class="switch" data-act="scheme">Switch to ${s === 'rc' ? 'Gamer (WASD + mouse)' : 'RC Mode 2 (transmitter)'}</button>`;
 }
 
 function brief() {
-  const hue = roam ? ACCENT : mission.hue;
-  const where = roam ? place!.name : mission.name;
-  const missionPanel = roam
-    ? `<div class="panel">
-        <h3 class="label">Flight plan <em>Free roam</em></h3>
-        <dl class="kv"><dt>Location</dt><dd>${place!.name} · ${place!.terrain}</dd></dl>
-        <dl class="kv"><dt>Rules</dt><dd>No objectives, no clock. Battery never runs out.</dd></dl>
-        <dl class="kv"><dt>Recovery</dt><dd>After a crash a fresh airframe waits on the pad.</dd></dl>
-        <ul class="tips"><li>Fly low and fast between the trees for the best sense of speed.</li><li>Tilt the camera up (E) when flying fast so the horizon stays in view.</li></ul>
-      </div>`
-    : `<div class="panel">
-        <h3 class="label">Mission <em>${mission.role}</em></h3>
-        <dl class="kv"><dt>Objective</dt><dd>${mission.objective}</dd></dl>
-        <dl class="kv"><dt>Failure</dt><dd>${mission.fail}</dd></dl>
-        <dl class="kv"><dt>Tool</dt><dd>${mission.tool}</dd></dl>
-        <ul class="tips">${mission.tips.map((t) => `<li>${t}</li>`).join('')}<li>Land on your pad any time to recharge the battery.</li></ul>
-      </div>`;
+  const hue = ACCENT;
+  const where = place!.name;
   show(
     'brief',
     `<section class="screen" style="--hue:${hue}">
-      ${top(roam ? ['Free roam', where, 'Pre-flight'] : ['Operations', where, 'Briefing'])}
+      ${top(['Free roam', where, 'Pre-flight'])}
       <div class="brief">
         <div class="lede">
-          <div class="label">${roam ? 'Free roam' : mission.role} · ${drone.name}</div>
+          <div class="label">Free roam · ${drone.name}</div>
           <h2 class="h">${where}</h2>
-          <p class="sub">${roam ? place!.blurb : mission.blurb}</p>
+          <p class="sub">${place!.blurb}</p>
         </div>
         <div class="stack">
-          ${missionPanel}
+          <div class="panel">
+            <h3 class="label">Flight plan <em>Free roam</em></h3>
+            <dl class="kv"><dt>Location</dt><dd>${place!.name} · ${place!.terrain}</dd></dl>
+            <dl class="kv"><dt>Rules</dt><dd>No objectives, no clock. Battery never runs out.</dd></dl>
+            <dl class="kv"><dt>Recovery</dt><dd>After a crash a fresh airframe waits on the pad.</dd></dl>
+          </div>
           <div class="panel">
             <h3 class="label">Controls <em>${game.input.scheme === 'rc' ? 'RC Mode 2' : 'Gamer'}</em></h3>
             ${controlsHtml(game.input.scheme)}
@@ -308,9 +254,8 @@ function brief() {
       </div>
       <div class="actions">
         <button class="btn" data-act="hangar" data-back>Hangar <span class="key">ESC</span></button>
-        ${roam ? '' : '<button class="btn" data-act="free">Free flight</button>'}
         <span class="grow"></span>
-        <button class="btn primary" data-act="${roam ? 'free' : 'launch'}" autofocus>Take off <span class="key">↵</span></button>
+        <button class="btn primary" data-act="free" autofocus>Take off <span class="key">↵</span></button>
       </div>
     </section>`,
   );
@@ -417,9 +362,9 @@ function pause() {
   show(
     'pause',
     `<section class="screen center">
-      <div class="modal" style="--hue:${roam ? ACCENT : mission.hue}">
+      <div class="modal" style="--hue:${ACCENT}">
         <div>
-          <div class="label">${game.free ? 'Free flight' : mission.name} · ${drone.name}</div>
+          <div class="label">${place?.name ?? 'Free flight'} · ${drone.name}</div>
           <h2>Paused</h2>
         </div>
         ${controlsHtml(game.input.scheme)}
@@ -438,16 +383,12 @@ function pause() {
 
 function debrief(r: Result) {
   lastResult = r;
-  if (r.won && r.stars > (best[mission.id] ?? 0)) {
-    best[mission.id] = r.stars;
-    localStorage.setItem('skyduty.best', JSON.stringify(best));
-  }
   show(
     'debrief',
     `<section class="screen center">
       <div class="modal ${r.won ? 'won' : 'lost'}">
         <div>
-          <div class="label">${mission.name} · ${r.won ? 'Operation complete' : 'Operation failed'}</div>
+          <div class="label">${place?.name ?? ''}</div>
           <h2>${r.won ? 'Debrief' : 'Mission lost'}</h2>
           ${r.won ? rating(r.stars) : `<p class="reason">${r.reason}</p>`}
         </div>
@@ -455,7 +396,6 @@ function debrief(r: Result) {
         <div class="actions">
           <button class="btn primary" data-act="launch" autofocus>${r.won ? 'Fly again' : 'Retry'}</button>
           <button class="btn" data-act="hangar-reset">Change drone</button>
-          <button class="btn" data-act="quit-ops">Operations</button>
         </div>
       </div>
     </section>`,
@@ -466,7 +406,7 @@ function debrief(r: Result) {
 function launch(free = false) {
   game.free = free;
   game.sound.init();
-  hudEl.style.setProperty('--hue', roam ? ACCENT : mission.hue);
+  hudEl.style.setProperty('--hue', ACCENT);
   show('none');
   game.start(drone);
   try {
@@ -489,7 +429,6 @@ function resume() {
 }
 
 function openWorld(id: WorldId) {
-  mission = MISSIONS.find((m) => m.id === id) ?? mission;
   game.loadMission(id);
   game.halt = true;
 }
@@ -510,9 +449,6 @@ ui.addEventListener('click', (e) => {
     case 'title':
       title();
       break;
-    case 'missions':
-      missions();
-      break;
     case 'roam':
       roamScreen();
       break;
@@ -525,13 +461,7 @@ ui.addEventListener('click', (e) => {
     case 'pause-back':
       pause();
       break;
-    case 'pick-mission':
-      roam = false;
-      openWorld(id as MissionId);
-      hangar();
-      break;
     case 'pick-place':
-      roam = true;
       place = PLACES.find((p) => p.id === id)!;
       openWorld(place.id);
       hangar();
@@ -581,10 +511,6 @@ ui.addEventListener('click', (e) => {
     case 'quit':
       game.toOrbit();
       hangar();
-      break;
-    case 'quit-ops':
-      game.toOrbit();
-      missions();
       break;
   }
 });
@@ -659,17 +585,12 @@ function boot() {
   // Dev shortcuts: ?fly=strike (optionally &drone=mauler&air=30) jumps straight
   // into a flight; ?hangar=fire opens the hangar; ?screen=roam opens a menu.
   const qs = new URLSearchParams(location.search);
-  const known = (s: string | null) => (PLACES.find((p) => p.id === s) ?? MISSIONS.find((m) => m.id === s))?.id;
+  const known = (s: string | null) => PLACES.find((p) => p.id === s)?.id;
   const autoId = known(qs.get('fly'));
   const hangId = known(qs.get('hangar'));
-  const pick = (id: WorldId) =>
-    DRONES.find((d) => d.id === qs.get('drone') && (roam || d.mission === id)) ?? DRONES.filter((d) => d.mission === id)[1] ?? DRONES[1];
-  const onlyRoam = (s?: WorldId) => !!s && !MISSIONS.some((m) => m.id === s);
-  if (qs.get('roam') === '1' || onlyRoam(autoId) || onlyRoam(hangId)) {
-    roam = true;
-    place = PLACES.find((p) => p.id === (qs.get('hangar') ?? qs.get('fly'))) ?? PLACES[0];
-  }
-  const screens: Record<string, () => void> = { title, missions, roam: roamScreen, settings, brief, phone };
+  const pick = (_id: WorldId) => DRONES.find((d) => d.id === qs.get('drone')) ?? drone;
+  place = PLACES.find((p) => p.id === (qs.get('hangar') ?? qs.get('fly'))) ?? PLACES[0];
+  const screens: Record<string, () => void> = { title, roam: roamScreen, settings, brief, phone };
   if (hangId) {
     drone = pick(hangId);
     openWorld(hangId);
@@ -681,7 +602,7 @@ function boot() {
   if (autoId) {
     drone = pick(autoId);
     openWorld(autoId);
-    launch(qs.get('free') === '1' || roam);
+    launch(true);
     const air = Number(qs.get('air'));
     const d = game.drone;
     if (air > 0 && d) {

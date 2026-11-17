@@ -104,7 +104,7 @@ function livery(spec: DroneSpec) {
       g.restore();
     }
     g.font = '800 64px "Segoe UI", Arial, sans-serif';
-    g.fillText(spec.mission === 'fire' ? 'FIRE' : spec.mission === 'strike' ? 'K-7' : 'AID', 256, 272);
+    g.fillText(spec.code, 256, 272);
     g.font = '700 17px Arial, sans-serif';
     g.fillText('SKYDUTY · UNIT ' + (spec.id.length * 7 + 11), 256, 770);
     g.fillText('⚠ ROTOR HAZARD — KEEP CLEAR', 256, 968);
@@ -445,7 +445,7 @@ export function buildDrone(spec: DroneSpec, opts: { fpv?: boolean } = {}): Drone
         add(new THREE.ConeGeometry(0.014 * b, 0.04 * b, 10).rotateX(-Math.PI / 2), glow(0xd9342b, 0.3), x, py - 0.075 * b, L * 0.02 - 0.12 * b);
       }
       add(new THREE.BoxGeometry(Math.max(1, n) * 0.05 * b, 0.012, 0.12 * b), dark, 0, py - 0.055 * b, L * 0.02);
-    } else {
+    } else if (spec.mission === 'relief') {
       // Winch frame with a strapped crate.
       add(new THREE.BoxGeometry(0.16 * b, 0.014, 0.16 * b), dark, 0, py - 0.01, L * 0.05);
       const c = 0.17 * b;
