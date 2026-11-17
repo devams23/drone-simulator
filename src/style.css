@@ -14,8 +14,9 @@
   --bad: #ff5a4f;
   --hue: #7cc9c0;
   --display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
-  --body: 'Inter', 'Segoe UI', system-ui, sans-serif;
-  --mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', monospace;
+  --body: 'Geist', 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --mono: 'Geist Mono', ui-monospace, 'Cascadia Mono', monospace;
+  --serif: 'Instrument Serif', 'Iowan Old Style', Georgia, serif;
 }
 
 * { box-sizing: border-box; }
@@ -318,7 +319,7 @@ h1, h2, h3 { margin: 0; font-weight: 300; text-wrap: balance; }
 .intro .fade { position: fixed; inset: 0; background: #56636f; pointer-events: none; animation: lights 3s ease-out forwards; }
 @keyframes lights { 0% { opacity: 1; } 30% { opacity: 0.9; } 100% { opacity: 0; } }
 .intro .mark { align-self: end; margin-bottom: 7vh; animation: rise 1.6s 1s cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
-.intro h1 { font: 200 clamp(44px, 7vw, 96px)/1 var(--body); letter-spacing: 0.06em; color: #fff; }
+.intro h1 { font: 400 clamp(52px, 8vw, 108px)/0.95 var(--serif); letter-spacing: -0.01em; color: #fff; }
 .intro .rule { width: 40px; height: 1px; margin: 20px auto 14px; background: rgba(255, 255, 255, 0.5); }
 .intro .mark p { margin: 0; font: 400 12px/1 var(--body); letter-spacing: 0.3em; text-transform: uppercase; color: var(--ink-2); }
 .intro .enter {
@@ -334,7 +335,7 @@ h1, h2, h3 { margin: 0; font-weight: 300; text-wrap: balance; }
 /* Main menu */
 .home-body { align-self: center; display: grid; gap: clamp(16px, 4vh, 34px); width: min(400px, 100%); }
 .hero p { margin: 0 0 6px; font: 400 12px/1 var(--body); letter-spacing: 0.24em; text-transform: uppercase; color: var(--ink-2); }
-.hero h1 { font: 200 clamp(44px, 10vh, 76px)/1 var(--body); letter-spacing: 0.01em; color: #fff; }
+.hero h1 { font: 400 clamp(52px, 12vh, 92px)/0.95 var(--serif); letter-spacing: -0.015em; color: #fff; }
 .menu { display: grid; gap: 8px; }
 .menu button {
   display: flex; align-items: center; gap: 14px; width: 100%; padding: clamp(8px, 1.6vh, 12px) 12px; text-align: left; cursor: pointer;
@@ -350,7 +351,7 @@ h1, h2, h3 { margin: 0; font-weight: 300; text-wrap: balance; }
 .status b { color: var(--ink); font-weight: 500; }
 
 /* Section heading */
-.h { font: 200 clamp(32px, 6vh, 50px)/1 var(--body); letter-spacing: 0.005em; }
+.h { font: 400 clamp(38px, 7.4vh, 58px)/1 var(--serif); letter-spacing: -0.01em; }
 .sub { margin: 8px 0 0; color: var(--ink-2); font-size: 14px; line-height: 1.5; max-width: 520px; font-weight: 300; }
 
 /* Card rail: operations and free-roam places */
@@ -377,7 +378,7 @@ h1, h2, h3 { margin: 0; font-weight: 300; text-wrap: balance; }
 .card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .card .ico { color: #fff; background: color-mix(in srgb, var(--hue) 34%, rgba(255, 255, 255, 0.12)); }
 .card .role { font: 500 10.5px/1 var(--body); letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); }
-.card b { font: 300 clamp(20px, 3.4vh, 24px)/1.1 var(--body); }
+.card b { font: 400 clamp(24px, 4.2vh, 30px)/1.05 var(--serif); letter-spacing: -0.005em; }
 .card .blurb { font-size: 13px; line-height: 1.45; color: var(--ink-2); font-weight: 300; }
 .card .foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: auto; padding-top: 10px; font: 400 12px/1.35 var(--body); color: var(--ink-3); }
 .card:hover .chev, .card:focus-visible .chev { background: #fff; color: #2e3a48; border-color: #fff; transform: translateX(2px); }
@@ -403,7 +404,7 @@ h1, h2, h3 { margin: 0; font-weight: 300; text-wrap: balance; }
 .unit .meta { font: 400 12px/1 var(--body); color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .ident { align-self: end; text-align: center; padding-bottom: 2px; }
 .ident .label { justify-content: center; margin-bottom: 8px; }
-.ident h2 { font: 200 clamp(36px, 7.4vh, 60px)/1 var(--body); }
+.ident h2 { font: 400 clamp(40px, 8vh, 66px)/1 var(--serif); letter-spacing: -0.01em; }
 .ident p { margin: 8px auto 0; max-width: 420px; color: var(--ink-2); font-size: 14px; line-height: 1.5; font-weight: 300; }
 .stat { display: grid; grid-template-columns: 70px 1fr 18px; align-items: center; gap: 12px; margin: clamp(5px, 1.1vh, 9px) 0; font-size: 13px; color: var(--ink-2); }
 .stat b { font: 500 12.5px/1 var(--body); color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
@@ -453,7 +454,7 @@ kbd { justify-self: start; font: 500 11.5px/1 var(--body); padding: 5px 8px; bor
   background: rgba(98, 112, 130, 0.5); border: 1px solid var(--line-2); border-radius: 28px;
   backdrop-filter: blur(30px) saturate(1.1); box-shadow: 0 40px 90px rgba(30, 40, 54, 0.35);
 }
-.modal h2 { font: 200 clamp(36px, 5vw, 50px)/1 var(--body); }
+.modal h2 { font: 400 clamp(38px, 5vw, 54px)/1 var(--serif); letter-spacing: -0.01em; }
 .modal .label { margin: 0 0 8px; }
 .modal.won .label { color: #c9f5dc; }
 .modal.lost .label { color: #ffc9c2; }
@@ -545,8 +546,8 @@ kbd { justify-self: start; font: 500 11.5px/1 var(--body); padding: 5px 8px; bor
 .marks { display: inline-flex; gap: 6px; flex-wrap: wrap; }
 .marks i { font: 500 10px/1 var(--body); font-style: normal; letter-spacing: 0.12em; text-transform: uppercase; padding: 5px 8px; border-radius: 99px; border: 1px solid rgba(255, 255, 255, 0.24); color: var(--ink-3); }
 .marks i.on { background: #fff; color: #2e3a48; border-color: #fff; }
-.card .num { font: 200 34px/1 var(--body); letter-spacing: -0.02em; color: #fff; }
-.card .tally { font: 300 22px/1 var(--body); }
+.card .num { font: 300 30px/1 var(--mono); letter-spacing: -0.02em; color: #fff; }
+.card .tally { font: 300 20px/1 var(--mono); }
 .card .tally small { font-size: 13px; color: var(--ink-3); }
 .card.locked { opacity: 0.55; cursor: default; }
 .card.locked:hover, .card.locked:focus-visible { transform: none; }
@@ -554,3 +555,7 @@ kbd { justify-self: start; font: 500 11.5px/1 var(--body); padding: 5px 8px; bor
 .course-end .clock { font: 200 clamp(46px, 7vw, 64px)/1 var(--mono); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
 .course-end .verdict { margin: 8px 0 12px; font: 300 15px/1.3 var(--body); color: var(--ink-2); }
 .course-end .verdict b { font-weight: 500; color: #fff; }
+
+/* serif titles: italics carry the accent, never bold */
+h1 em, h2 em, .card b em { font-style: italic; color: rgba(255, 255, 255, 0.86); }
+.course-end .clock { font-weight: 300; }

@@ -107,7 +107,7 @@ function intro() {
     `<section class="screen intro">
       <div class="fade"></div>
       <div class="mark">
-        <h1>SkyDuty</h1>
+        <h1>Sky<em>Duty</em></h1>
         <div class="rule"></div>
         <p>First-person drone flight</p>
       </div>
@@ -124,7 +124,7 @@ function title() {
     `<section class="screen home">
       ${top([])}
       <div class="home-body">
-        <div class="hero"><p>FPV drone flight</p><h1>SkyDuty</h1></div>
+        <div class="hero"><p>FPV drone flight</p><h1>Sky<em>Duty</em></h1></div>
         <nav class="menu">
           ${menuItem('modes', ICON.fly, 'Fly', 'Gates, courier, threading, touchdown', true)}
           ${menuItem('roam', ICON.roam, 'Free roam', 'No clock, no gates, no rules')}
@@ -191,7 +191,7 @@ function modes() {
       ${top(['Fly'])}
       ${rail(
         'Fly',
-        'Four disciplines. Each one opens its next course when you fly the last one clean.',
+        'Four disciplines, three courses each. Fly one clean and the next one opens.',
         MODES.map((m) => {
           const list = ladder(m.id);
           const clean = list.filter((c) => rec[c.id]?.clean).length;
@@ -814,7 +814,7 @@ show(
   'loading',
   `<section class="screen loading">
     <div class="intro">
-      <div class="mark" style="animation:none;margin:0"><h1>SkyDuty</h1></div>
+      <div class="mark" style="animation:none;margin:0"><h1>Sky<em>Duty</em></h1></div>
       <div class="loadbar"><i id="loadfill"></i></div>
       <div class="loadmeta"><span id="loadtxt">Loading terrain and sky</span><span id="loadpct">0%</span></div>
     </div>
