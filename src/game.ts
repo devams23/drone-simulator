@@ -27,6 +27,7 @@ export interface Result {
 }
 
 const FOV = 78;
+export type View = 'fpv' | 'chase';
 
 export type Quality = 'high' | 'medium' | 'low';
 const QUALITY: Record<Quality, { ratio: number; shadow: number; samples: number; grass: number; post: boolean }> = {
@@ -83,6 +84,7 @@ export class Game {
   mission?: Mission;
   drone?: Drone;
   mode: 'idle' | 'orbit' | 'fly' | 'ended' = 'idle';
+  view: View = (localStorage.getItem('skyduty.view') as View) === 'chase' ? 'chase' : 'fpv';
   paused = false;
   /** Set while the garage is drawn over the world: skip simulating and rendering it. */
   halt = false;
@@ -217,6 +219,8 @@ export class Game {
     m.attach(d, (text, kind) => this.hud.toast(text, kind));
     m.elapsed = 0;
     this.camera.add(d.rig);
+    this.scene.add(d.body);
+    d.setView(this.view);
     this.mode = 'fly';
     this.result = undefined;
     this.lowBatteryTold = false;
@@ -226,6 +230,18 @@ export class Game {
     this.hud.show(true);
     this.respawnT = 0;
     this.hud.toast(this.free ? 'Free flight — roam anywhere, Esc for menu' : 'Hold climb to spin up and take off', 'info');
+  }
+
+  /** Cockpit (first-person) or chase (third-person) camera; remembered. */
+  setView(v: View) {
+    this.view = v;
+    localStorage.setItem('skyduty.view', v);
+    this.drone?.setView(v);
+  }
+
+  toggleView() {
+    this.setView(this.view === 'fpv' ? 'chase' : 'fpv');
+    if (this.mode === 'fly') this.hud.toast(this.view === 'chase' ? 'Chase camera' : 'Cockpit camera', 'info');
   }
 
   setPaused(p: boolean) {
@@ -310,6 +326,10 @@ export class Game {
     const flying = this.mode === 'fly';
     const c = flying ? this.input.read() : IDLE;
     if (this.input.scheme === 'rc') c.mouseYaw = 0;
+    if (this.input.viewToggle) {
+      this.input.viewToggle = false;
+      if (flying) this.toggleView();
+    }
     d.update(dt, c, { world: m.world, wind: m.wind, waterY: m.waterY });
     if (flying && m.status === 'active' && !this.free) m.update(dt, c);
     if (this.free && d.alive) d.battery = 1;
@@ -321,7 +341,7 @@ export class Game {
       if (!m.state) m.state = 'RECHARGING';
     }
 
-    d.applyCamera(this.camera, this.time, dt);
+    d.applyCamera(this.camera, this.time, dt, (x, z) => Math.max(m.world.heightAt(x, z), m.waterY ?? -1e9));
     this.sound.rotor(d.alive ? d.spool : 0, d.load, d.vel.length(), d.spec.bulk);
 
 

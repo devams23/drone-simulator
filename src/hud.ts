@@ -117,7 +117,6 @@ export class Hud {
   update(d: Drone, m: Mission, cam: THREE.PerspectiveCamera, dt: number, scheme: Scheme, c: Controls, free: boolean) {
     const W = window.innerWidth;
     const H = window.innerHeight;
-    const focal = H / 2 / Math.tan((cam.fov * Math.PI) / 360);
     if (!d.landed) this.flightT += dt;
 
     // Damage flash + persistent red edge when the hull is nearly gone.
@@ -127,14 +126,13 @@ export class Hud {
     this.vignette.style.opacity = edge.toFixed(2);
     this.root.classList.toggle('static', !d.alive || d.outOfBounds);
     this.root.classList.toggle('free', free);
+    this.root.classList.toggle('chase', d.view === 'chase');
 
-    const ground = Math.max(m.world.heightAt(d.pos.x, d.pos.z), m.waterY ?? -1e9);
-    const agl = Math.max(0, d.pos.y - ground - 0.7);
     const speed = Math.hypot(d.vel.x, d.vel.z);
     const deg = ((((-d.yaw * 180) / Math.PI) % 360) + 360) % 360;
 
     this.updateMarkers(d, m, cam, W, H, free);
-    this.drawOverlay(d, m, W, H, focal, agl, speed, deg, free);
+    this.drawOverlay(d, m, deg, free);
     this.drawAttitude(d);
     this.drawDial(d, speed);
     this.updateSticks(c, dt);
@@ -232,77 +230,14 @@ export class Hud {
     put(this.stickR, this.sR);
   }
 
-  // ------------------------------------------------- tapes, ladder, compass
-  private drawOverlay(d: Drone, m: Mission, W: number, H: number, focal: number, agl: number, speed: number, deg: number, free: boolean) {
-    const [w, h] = this.overlay.fit();
+  // ------------------------------------------------------------- compass
+  private drawOverlay(d: Drone, m: Mission, deg: number, free: boolean) {
+    const [w] = this.overlay.fit();
     const g = this.overlay.g;
     g.lineCap = 'round';
     g.shadowColor = SHADOW;
     g.shadowBlur = 3;
     const cx = w / 2;
-    const cy = h / 2;
-
-    // Pitch ladder, clipped to a circle round the reticle.
-    const shift = d.camPitch * focal;
-    const step = (10 * Math.PI) / 180 * focal;
-    const clipR = Math.min(h * 0.27, 230);
-    g.save();
-    g.beginPath();
-    g.arc(cx, cy, clipR, 0, TAU);
-    g.clip();
-    g.translate(cx, cy);
-    g.rotate(-d.roll * 0.75);
-    g.translate(0, shift);
-    g.strokeStyle = LINE;
-    g.fillStyle = LINE;
-    g.font = `600 11px ${FONT}`;
-    g.textBaseline = 'middle';
-    // Horizon with a gap round the reticle.
-    g.lineWidth = 1.6;
-    g.beginPath();
-    g.moveTo(-clipR, 0);
-    g.lineTo(-46, 0);
-    g.moveTo(46, 0);
-    g.lineTo(clipR, 0);
-    g.stroke();
-    g.lineWidth = 1.2;
-    for (let k = -6; k <= 6; k++) {
-      if (!k) continue;
-      const y = -k * step;
-      const half = k % 2 ? 34 : 54;
-      g.setLineDash(k < 0 ? [6, 5] : []);
-      g.beginPath();
-      g.moveTo(-half - 26, y + (k < 0 ? -6 : 6));
-      g.lineTo(-half - 26, y);
-      g.lineTo(-26, y);
-      g.moveTo(26, y);
-      g.lineTo(half + 26, y);
-      g.lineTo(half + 26, y + (k < 0 ? -6 : 6));
-      g.stroke();
-      g.setLineDash([]);
-      if (k % 2 === 0) {
-        g.textAlign = 'right';
-        g.fillText(String(Math.abs(k * 10)), -half - 32, y);
-        g.textAlign = 'left';
-        g.fillText(String(Math.abs(k * 10)), half + 32, y);
-      }
-    }
-    g.restore();
-
-    // Speed tape (left) and altitude tape (right).
-    const gap = Math.min(w * 0.25, 330);
-    const tapeH = Math.min(h * 0.42, 300);
-    this.tape(g, cx - gap, cy, tapeH, speed * 3.6, 3, 10, 'left', 'KM/H', String(Math.round(speed * 3.6)));
-    this.tape(g, cx + gap, cy, tapeH, agl, 7, 5, 'right', 'AGL M', agl < 10 ? agl.toFixed(1) : String(Math.round(agl)));
-
-    // Vertical speed caret beside the altitude tape.
-    const vs = Math.max(-6, Math.min(6, d.vel.y));
-    g.strokeStyle = vs >= 0 ? '#7dffb0' : '#ffb36b';
-    g.lineWidth = 3;
-    g.beginPath();
-    g.moveTo(cx + gap + 72, cy);
-    g.lineTo(cx + gap + 72, cy - vs * (tapeH / 14));
-    g.stroke();
 
     // Compass tape across the top.
     const cw = Math.min(w * 0.42, 520);
@@ -367,56 +302,6 @@ export class Hud {
     g.lineTo(cx - 4, top - 6);
     g.lineTo(cx + 4, top - 6);
     g.fill();
-  }
-
-  private tape(g: CanvasRenderingContext2D, x: number, cy: number, H: number, value: number, pxPer: number, label: number, side: 'left' | 'right', title: string, text: string) {
-    const dir = side === 'left' ? -1 : 1;
-    g.save();
-    g.beginPath();
-    g.rect(x - 70, cy - H / 2, 140, H);
-    g.clip();
-    g.strokeStyle = SOFT;
-    g.fillStyle = LINE;
-    g.lineWidth = 1;
-    g.font = `500 11px ${FONT}`;
-    g.textBaseline = 'middle';
-    g.textAlign = side === 'left' ? 'right' : 'left';
-    // Spine.
-    g.beginPath();
-    g.moveTo(x, cy - H / 2);
-    g.lineTo(x, cy + H / 2);
-    g.stroke();
-    const span = H / 2 / pxPer;
-    for (let v = Math.ceil(value - span); v <= value + span; v++) {
-      if (v < 0) continue;
-      const y = cy - (v - value) * pxPer;
-      const major = v % label === 0;
-      if (!major && v % (pxPer < 4 ? 5 : 1) !== 0) continue;
-      g.beginPath();
-      g.moveTo(x, y);
-      g.lineTo(x + dir * (major ? 10 : 5), y);
-      g.stroke();
-      if (major && Math.abs(y - cy) > 14) g.fillText(String(v), x + dir * 14, y);
-    }
-    g.restore();
-    // Current value box.
-    const bw = 58;
-    const bx = side === 'left' ? x - bw - 4 : x + 4;
-    g.fillStyle = 'rgba(8,14,22,0.72)';
-    g.strokeStyle = LINE;
-    g.lineWidth = 1.2;
-    g.beginPath();
-    g.roundRect(bx, cy - 13, bw, 26, 3);
-    g.fill();
-    g.stroke();
-    g.fillStyle = '#fff';
-    g.font = `700 16px ${FONT}`;
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.fillText(text, bx + bw / 2, cy + 1);
-    g.fillStyle = SOFT;
-    g.font = `600 10px ${FONT}`;
-    g.fillText(title, x, cy - H / 2 - 12);
   }
 
   // ---------------------------------------------------------- attitude

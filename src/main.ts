@@ -2,7 +2,7 @@
 // briefing → flight → debrief. Every menu sits over a live 3D drone garage.
 import './style.css';
 import { DRONES, MISSIONS, STAT_LABELS, physics, type DroneSpec, type MissionCard, type MissionId, type WorldId } from './data';
-import { Game, type Quality, type Result } from './game';
+import { Game, type Quality, type Result, type View } from './game';
 import { Garage, type Shot } from './garage';
 import type { Scheme } from './input';
 
@@ -235,7 +235,7 @@ function controlsHtml(s: Scheme) {
           ['Mouse / ← →', 'Yaw'],
           ['F / Click', 'Use tool'],
         ];
-  rows.push(['Q / E', 'Camera tilt down / up'], ['G / R-click', 'Secondary (rockets)'], ['Esc', 'Pause']);
+  rows.push(['Q / E', 'Camera tilt down / up'], ['G / R-click', 'Secondary (rockets)'], ['V / M', 'Chase camera / mute'], ['Esc', 'Pause']);
   return `<div class="keys">${rows.map(([k, v]) => `<kbd>${k}</kbd><span>${v}</span>`).join('')}</div>
     <button class="switch" data-act="scheme">Switch to ${s === 'rc' ? 'Gamer (WASD + mouse)' : 'RC Mode 2 (transmitter)'}</button>`;
 }
@@ -290,6 +290,11 @@ function qualityCtl() {
   return `<div class="seg-ctl">${(['low', 'medium', 'high'] as Quality[]).map((q) => `<button class="${game.quality === q ? 'on' : ''}" data-act="quality" data-id="${q}">${q}</button>`).join('')}</div>`;
 }
 
+function viewCtl() {
+  const v = game.view;
+  return `<div class="seg-ctl"><button class="${v === 'fpv' ? 'on' : ''}" data-act="view" data-id="fpv">Cockpit</button><button class="${v === 'chase' ? 'on' : ''}" data-act="view" data-id="chase">Chase</button></div>`;
+}
+
 function settings() {
   garage?.setAccent(ACCENT);
   const s = game.input.scheme;
@@ -312,7 +317,8 @@ function settings() {
             <div class="keys" style="margin-top:6px">${controlsHtml(s).split('<button')[0].replace('<div class="keys">', '')}
           </div>
           <div class="setting">
-            <div class="row"><h4>Sound</h4><span class="actions hint" style="border:0;padding:0">Press M in flight to mute</span></div>
+            <div class="row"><h4>Camera</h4>${viewCtl()}</div>
+            <p>Cockpit flies from the nose camera. Chase follows behind so you see the whole drone. Press V in flight to switch.</p>
           </div>
         </div>
       </div>
@@ -332,7 +338,7 @@ function pause() {
           <h2>Paused</h2>
         </div>
         ${controlsHtml(game.input.scheme)}
-        <div class="setting" style="padding-bottom:0"><div class="row"><h4>Graphics</h4>${qualityCtl()}</div></div>
+        <div class="setting" style="padding-bottom:0"><div class="row"><h4>Graphics</h4>${qualityCtl()}</div><div class="row" style="margin-top:8px"><h4>Camera</h4>${viewCtl()}</div></div>
         <div class="actions">
           <button class="btn primary" data-act="resume" autofocus>Resume <span class="key">ESC</span></button>
           <button class="btn" data-act="${game.free ? 'free' : 'launch'}">Restart</button>
@@ -461,6 +467,11 @@ ui.addEventListener('click', (e) => {
       game.input.setScheme(id as Scheme);
       settings();
       break;
+    case 'view':
+      game.setView(id as View);
+      if (screen === 'pause') pause();
+      else settings();
+      break;
     case 'quality':
       game.setQuality(id as Quality);
       if (screen === 'pause') pause();
@@ -524,6 +535,7 @@ window.addEventListener('keydown', (e) => {
     }
   }
   if (e.code === 'KeyM') game.sound.toggleMute();
+  if (e.code === 'KeyV' && screen === 'none' && game.mode === 'fly') game.toggleView();
   if (e.code === 'Escape' || e.code === 'KeyP') {
     if (screen === 'pause') resume();
     else if (screen === 'none' && game.mode === 'fly') pause();
@@ -571,6 +583,8 @@ function boot() {
     hangar();
     if (qs.get('screen') === 'brief') brief();
   } else if (screens[qs.get('screen') ?? '']) screens[qs.get('screen')!]();
+  const v = qs.get('view');
+  if (v === 'chase' || v === 'fpv') game.setView(v);
   if (autoId) {
     drone = pick(autoId);
     openWorld(autoId);

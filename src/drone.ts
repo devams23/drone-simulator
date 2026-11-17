@@ -14,6 +14,9 @@ export interface Env {
 const G = 9.81;
 const CEILING = 115;
 const nrm = new THREE.Vector3();
+const CHASE_SCALE = 1.7;
+const tmp = new THREE.Vector3();
+const look = new THREE.Vector3();
 
 export class Drone {
   pos = new THREE.Vector3();
@@ -40,7 +43,16 @@ export class Drone {
   onDamage: (kind: string, amount: number) => void = () => {};
 
   rig = new THREE.Group();
+  /** Full airframe seen from outside in chase view; added to the scene by the game. */
+  body = new THREE.Group();
+  view: 'fpv' | 'chase' = 'fpv';
   private model: DroneModel;
+  private outer?: DroneModel;
+  // Chase camera state.
+  private camPos = new THREE.Vector3(NaN, 0, 0);
+  private camRoll = 0;
+  private bodyP = 0;
+  private bodyR = 0;
   private swayX = 0;
   private swayY = 0;
   private fallSpin = 0;
@@ -57,6 +69,23 @@ export class Drone {
     this.model = buildDrone(spec, { fpv: true });
     this.model.group.position.set(0, 0.42 * spec.bulk, 0.08 * spec.bulk);
     this.rig.add(this.model.group);
+  }
+
+  /** Switch between the cockpit camera and the third-person chase camera. */
+  setView(v: 'fpv' | 'chase') {
+    this.view = v;
+    if (v === 'chase' && !this.outer) {
+      // Shown a little larger than life so it reads clearly on screen.
+      this.outer = buildDrone(this.spec);
+      this.outer.group.scale.setScalar(CHASE_SCALE);
+      this.outer.group.traverse((o) => {
+        if ((o as THREE.Mesh).isMesh) o.castShadow = true;
+      });
+      this.body.add(this.outer.group);
+    }
+    this.rig.visible = v === 'fpv';
+    this.body.visible = v === 'chase';
+    this.camPos.x = NaN;
   }
 
   // ---------------------------------------------------------------- physics
@@ -210,7 +239,7 @@ export class Drone {
   }
 
   // ------------------------------------------------------------------ view
-  applyCamera(cam: THREE.PerspectiveCamera, t: number, dt: number) {
+  applyCamera(cam: THREE.PerspectiveCamera, t: number, dt: number, ground: (x: number, z: number) => number = () => -1e9) {
     const s = this.shake;
     const vib = this.spool * 0.0005;
     // Smooth, band-limited shake instead of per-frame random jitter.
@@ -240,6 +269,15 @@ export class Drone {
     );
     const cp = Math.cos(this.camPitch);
     this.aim.set(-Math.sin(this.sYaw) * cp, Math.sin(this.camPitch), -Math.cos(this.sYaw) * cp);
+    const spin = this.spool * (58 + this.load * 14) * dt;
+
+    if (this.view === 'chase') {
+      this.chase(cam, t, dt, ground, n1, n2);
+      const o = this.outer!;
+      o.props.forEach((p, i) => (p.rotation.y += spin * (i === 0 || i === 3 ? 1 : -1)));
+      o.setSpin(this.spool);
+      return;
+    }
 
     // The airframe lags behind the camera a little, so the arms visibly move.
     const kx = 1 - Math.exp(-dt * 5);
@@ -251,8 +289,57 @@ export class Drone {
       Math.max(-0.05, Math.min(0.05, this.swayY)) + Math.sin(t * 21) * vib,
       0,
     );
-    const spin = this.spool * (58 + this.load * 14) * dt;
     this.model.props.forEach((p, i) => (p.rotation.y += spin * (i === 0 || i === 3 ? 1 : -1)));
     this.model.setSpin(this.spool);
+  }
+
+  /**
+   * Third-person camera: trails the drone on a spring so it swings wide in
+   * turns, dips and rises with climbs, and banks with the drone like a ride.
+   */
+  private chase(cam: THREE.PerspectiveCamera, t: number, dt: number, ground: (x: number, z: number) => number, n1: number, n2: number) {
+    const o = this.outer!;
+    const b = this.spec.bulk * CHASE_SCALE;
+    const dist = 1.4 + 1.6 * b;
+    const elev = 0.17 + Math.max(-0.2, Math.min(1.2, -this.gimbal - 0.12)) * 0.32;
+    const sy = Math.sin(this.sYaw);
+    const cy = Math.cos(this.sYaw);
+
+    // Drone attitude, lightly smoothed so the model reads clearly.
+    const kb = 1 - Math.exp(-dt * 12);
+    this.bodyP += (this.pitch - this.bodyP) * kb;
+    this.bodyR += (this.roll - this.bodyR) * kb;
+    const dead = !this.alive;
+    this.body.position.set(this.pos.x, this.pos.y - 0.7 - o.foot * CHASE_SCALE, this.pos.z);
+    this.body.rotation.order = 'YXZ';
+    this.body.rotation.set(
+      -this.bodyP + (dead ? this.fallSpin * 0.7 : 0),
+      this.yaw + (dead ? this.fallSpin : 0),
+      -this.bodyR + (dead ? Math.sin(this.fallSpin) : 0),
+    );
+    // Small hover bob so a still drone still feels alive.
+    this.body.position.y += Math.sin(t * 2.1) * 0.02 * this.spool * (this.landed ? 0 : 1);
+
+    // Where the camera wants to be: behind and above, along the smoothed heading.
+    tmp.set(this.pos.x + sy * dist * Math.cos(elev), this.pos.y + dist * Math.sin(elev) + 0.25 * b, this.pos.z + cy * dist * Math.cos(elev));
+    if (Number.isNaN(this.camPos.x)) this.camPos.copy(tmp);
+    const kp = 1 - Math.exp(-dt * 6);
+    this.camPos.x += (tmp.x - this.camPos.x) * kp;
+    this.camPos.z += (tmp.z - this.camPos.z) * kp;
+    this.camPos.y += (tmp.y - this.camPos.y) * (1 - Math.exp(-dt * 4));
+    // Never let the lag stretch so far that the drone shrinks to a dot.
+    tmp.subVectors(this.camPos, this.pos);
+    const far = dist * 2;
+    if (tmp.length() > far) this.camPos.copy(this.pos).addScaledVector(tmp.normalize(), far);
+    this.camPos.y = Math.max(this.camPos.y, ground(this.camPos.x, this.camPos.z) + 0.6);
+
+    cam.position.copy(this.camPos);
+    cam.position.x += n1 * this.shake * 0.08;
+    cam.position.y += n2 * this.shake * 0.08;
+    look.set(this.pos.x - sy * dist * 0.7, this.pos.y + 0.15 * b, this.pos.z - cy * dist * 0.7);
+    cam.up.set(0, 1, 0);
+    cam.lookAt(look);
+    this.camRoll += (-this.roll * 0.4 - this.camRoll) * (1 - Math.exp(-dt * 3));
+    cam.rotateZ(this.camRoll);
   }
 }

@@ -68,6 +68,8 @@ html, body {
 #reticle .t, #reticle .b { left: -0.75px; width: 1.5px; height: 8px; }
 #reticle .t { top: -18px; }
 #reticle .b { top: 10px; }
+/* The aim pointer only matters when there is a job to aim at, from the nose camera. */
+#hud.free #reticle, #hud.chase #reticle { display: none; }
 
 #hud .panel {
   position: absolute; padding: 10px 14px;

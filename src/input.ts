@@ -22,6 +22,9 @@ export class Input {
   private mdx = 0;
   private mdy = 0;
   private mb = [false, false, false];
+  /** Set once per press of the camera-view button (gamepad Y, phone). */
+  viewToggle = false;
+  private padView = false;
 
   constructor(private canvas: HTMLCanvasElement) {
     this.scheme = (localStorage.getItem('skyduty.scheme') as Scheme) || 'rc';
@@ -106,6 +109,8 @@ export class Input {
       const b = (i: number) => !!pad.buttons[i]?.pressed;
       c.primary = c.primary || b(7) || b(0);
       c.secondary = c.secondary || b(5) || b(1);
+      if (b(3) && !this.padView) this.viewToggle = true;
+      this.padView = b(3);
       if (b(12)) c.gimbal += 1;
       if (b(13)) c.gimbal -= 1;
     }
