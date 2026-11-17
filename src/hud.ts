@@ -132,8 +132,9 @@ export class Hud {
     const deg = ((((-d.yaw * 180) / Math.PI) % 360) + 360) % 360;
 
     this.updateMarkers(d, m, cam, W, H, free);
-    this.drawOverlay(d, m, deg, free);
-    this.drawAttitude(d);
+    if (!free) this.drawOverlay(d, m, deg, free);
+    else this.overlay.fit();
+    // The attitude ball is hidden in the decluttered HUD; skip drawing it.
     this.drawDial(d, speed);
     this.updateSticks(c, dt);
 

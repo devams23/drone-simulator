@@ -69,7 +69,10 @@ html, body {
 #reticle .t { top: -18px; }
 #reticle .b { top: 10px; }
 /* The aim pointer only matters when there is a job to aim at, from the nose camera. */
-#hud.free #reticle, #hud.chase #reticle { display: none; }
+#hud.chase #reticle { display: none; }
+/* Decluttered: speed dial and centre pointer stay; free roam drops the mission panels too. */
+#cluster-c, #wind, .stick, #keys { display: none !important; }
+#hud.free #objective, #hud.free #systems, #hud.free #radar { display: none !important; }
 
 #hud .panel {
   position: absolute; padding: 10px 14px;
