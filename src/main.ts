@@ -1,5 +1,5 @@
 // Menus and the player journey: garage → operation or free roam → hangar →
-// briefing → flight → debrief. Every menu sits over a live 3D drone garage.
+// briefing → flight → debrief. Every menu sits over a live 3D drone studio.
 import './style.css';
 import { DRONES, MISSIONS, STAT_LABELS, physics, type DroneSpec, type MissionCard, type MissionId, type WorldId } from './data';
 import { Game, type Quality, type Result, type View } from './game';
@@ -46,6 +46,24 @@ const best: Record<string, number> = (() => {
     return {};
   }
 })();
+// Line icons (24px grid, drawn with currentColor).
+const svg = (d: string) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const ICON = {
+  ops: svg('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>'),
+  roam: svg('<path d="M3 19l6-9 4 6 3-4 5 7z"/><circle cx="16.5" cy="6.5" r="1.8"/>'),
+  settings: svg('<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>'),
+  phone: svg('<rect x="3" y="7" width="18" height="10" rx="3"/><circle cx="8" cy="12" r="1.6"/><circle cx="16" cy="12" r="1.6"/>'),
+  fire: svg('<path d="M12 3c1 3 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5 0 2 1 3 2 3 0-3-1-5 1-8.5z"/>'),
+  strike: svg('<circle cx="12" cy="12" r="7"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="1"/>'),
+  relief: svg('<path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M4 8l8 4 8-4M12 12v8"/>'),
+  canyon: svg('<path d="M3 19l5-12 3 6 2-3 8 9z"/><path d="M9 19c1-2 3-2 4-4"/>'),
+  pine: svg('<path d="M12 3l5 7h-3l4 6H6l4-6H7z"/><path d="M12 16v5"/>'),
+  sun: svg('<circle cx="12" cy="10" r="3.5"/><path d="M12 3v1.5M5 10H3.5M20.5 10H19M6.6 4.6l1 1M17.4 4.6l-1 1M3 19h18M6 16h12"/>'),
+  wave: svg('<path d="M3 9c3-2 6 2 9 0s6-2 9 0M3 14c3-2 6 2 9 0s6-2 9 0M3 19c3-2 6 2 9 0s6-2 9 0"/>'),
+  chev: svg('<path d="M10 7l5 5-5 5"/>'),
+};
+const PLACE_ICON: Record<string, string> = { canyon: ICON.canyon, fire: ICON.pine, strike: ICON.sun, relief: ICON.wave };
+
 const rating = (n: number) => `<span class="rating">${[0, 1, 2].map((i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span>`;
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
@@ -53,7 +71,7 @@ function top(crumbs: string[]) {
   const now = new Date();
   return `<header class="top">
     <div class="crumbs"><b>SkyDuty</b>${crumbs.map((c) => `<span>${c}</span>`).join('')}</div>
-    <div class="meta"><span><i class="dot"></i>Bay 03 online</span><span>${pad2(now.getHours())}:${pad2(now.getMinutes())} LT</span></div>
+    <div class="meta"><span>${pad2(now.getHours())}:${pad2(now.getMinutes())}</span></div>
   </header>`;
 }
 
@@ -81,7 +99,7 @@ function intro() {
     `<section class="screen intro">
       <div class="fade"></div>
       <div class="mark">
-        <h1>SKYDUTY</h1>
+        <h1>SkyDuty</h1>
         <div class="rule"></div>
         <p>First-person drone flight</p>
       </div>
@@ -96,19 +114,26 @@ function title() {
   show(
     'title',
     `<section class="screen home">
-      ${top(['Main menu'])}
-      <nav class="menu">
-        <button data-act="missions" autofocus><span class="t">Operations</span><small>Fire, strike and relief missions</small></button>
-        <button data-act="roam"><span class="t">Free roam</span><small>No objectives, no clock</small></button>
-        <button data-act="settings"><span class="t">Settings</span><small>Graphics and controls</small></button>
-        <button data-act="phone"><span class="t">Phone remote</span><small>Fly with your phone as the transmitter</small></button>
-      </nav>
+      ${top([])}
+      <div class="home-body">
+        <div class="hero"><p>FPV drone flight</p><h1>SkyDuty</h1></div>
+        <nav class="menu">
+          ${menuItem('missions', ICON.ops, 'Operations', 'Fire, strike and relief missions', true)}
+          ${menuItem('roam', ICON.roam, 'Free roam', 'No objectives, no clock')}
+          ${menuItem('settings', ICON.settings, 'Settings', 'Graphics, camera and controls')}
+          ${menuItem('phone', ICON.phone, 'Phone remote', 'Use your phone as the transmitter')}
+        </nav>
+      </div>
       <footer class="status">
         <span><i class="dot"></i>On the pad · <b>${drone.name}</b></span>
         <span>Esc back · Enter select</span>
       </footer>
     </section>`,
   );
+}
+
+function menuItem(act: string, icon: string, t: string, sub: string, focus = false) {
+  return `<button data-act="${act}" ${focus ? 'autofocus' : ''}><span class="ico">${icon}</span><span class="tx"><span class="t">${t}</span><small>${sub}</small></span><span class="chev">${ICON.chev}</span></button>`;
 }
 
 function rail(head: string, sub: string, cards: string) {
@@ -128,10 +153,11 @@ function missions() {
         'Each one has its own terrain, tool and fleet.',
         MISSIONS.map(
           (m) => `<button class="card" style="--hue:${m.hue}" data-act="pick-mission" data-id="${m.id}" data-hue="${m.hue}" ${m.id === mission.id ? 'autofocus' : ''}>
+            <span class="card-top"><span class="ico">${ICON[m.id]}</span>${rating(best[m.id] ?? 0)}</span>
             <span class="role">${m.role}</span>
             <b>${m.name}</b>
             <span class="blurb">${m.blurb}</span>
-            <span class="foot"><span>${m.objective}</span>${rating(best[m.id] ?? 0)}</span>
+            <span class="foot"><span>${m.objective}</span><span class="chev">${ICON.chev}</span></span>
           </button>`,
         ).join(''),
       )}
@@ -152,9 +178,11 @@ function roamScreen() {
         'Unlimited battery, no objectives. Just fly.',
         PLACES.map(
           (p, i) => `<button class="card" style="--hue:${ACCENT}" data-act="pick-place" data-id="${p.id}" ${i === 0 ? 'autofocus' : ''}>
+            <span class="card-top"><span class="ico">${PLACE_ICON[p.id]}</span></span>
             <span class="role">${p.terrain}</span>
             <b>${p.name}</b>
             <span class="blurb">${p.blurb}</span>
+            <span class="foot"><span>Unlimited battery</span><span class="chev">${ICON.chev}</span></span>
           </button>`,
         ).join(''),
       )}
@@ -674,7 +702,7 @@ show(
   'loading',
   `<section class="screen loading">
     <div class="intro">
-      <div class="mark" style="animation:none;margin:0"><h1>SKYDUTY</h1></div>
+      <div class="mark" style="animation:none;margin:0"><h1>SkyDuty</h1></div>
       <div class="loadbar"><i id="loadfill"></i></div>
       <div class="loadmeta"><span id="loadtxt">Loading terrain and sky</span><span id="loadpct">0%</span></div>
     </div>
