@@ -54,6 +54,10 @@ export interface TerrainCfg {
 }
 
 /** Graphics settings shared with the renderer. */
+/** Spots kept free of trees and rocks (course gates and pads). Set before a world is built. */
+export const clearings: { x: number; z: number; r: number }[] = [];
+const cleared = (s: { x: number; z: number }) => clearings.some((c) => Math.hypot(s.x - c.x, s.z - c.z) < c.r);
+
 export const gfx = { shadowSize: 2048, shadowRange: 110, grass: 1 };
 
 /** Small deterministic random generator so every run builds the same map. */
@@ -719,6 +723,7 @@ export class World {
    * `autumn` the share of those in autumn colours. Each gets a slim collider.
    */
   pines(spots: { x: number; z: number; s: number }[], canopy = 0x4f8a3a, mix = 0, autumn = 0) {
+    spots = spots.filter((s) => !cleared(s));
     const r = rng(spots.length * 13 + 5);
     const pineSpots = spots.filter(() => r() >= mix);
     const leafSpots = spots.filter((s) => !pineSpots.includes(s));
@@ -845,6 +850,7 @@ export class World {
 
   /** Scattered boulders (decoration only). */
   rocks(spots: { x: number; z: number; s: number }[], color: number, id: TexId = 'rock_face') {
+    spots = spots.filter((s) => !cleared(s));
     const geo = new THREE.IcosahedronGeometry(1, 3);
     const p = geo.attributes.position;
     for (let k = 0; k < p.count; k++) {

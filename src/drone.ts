@@ -41,6 +41,10 @@ export class Drone {
   outOfBounds = false;
   deathReason = '';
   onDamage: (kind: string, amount: number) => void = () => {};
+  /** Course flying: no hull wear. Light contacts are counted, hard ones are a crash. */
+  fragile = false;
+  touches = 0;
+  private touchCd = 0;
 
   rig = new THREE.Group();
   /** Full airframe seen from outside in chase view; added to the scene by the game. */
@@ -93,6 +97,7 @@ export class Drone {
     const ph = this.ph;
     const w = env.world;
 
+    this.touchCd = Math.max(0, this.touchCd - dt);
     if (!this.alive) {
       // Wreck tumbles to the ground.
       this.vel.y -= G * dt;
@@ -183,7 +188,13 @@ export class Drone {
         const impact = -this.vel.y;
         const hs = Math.hypot(this.vel.x, this.vel.z);
         this.pos.y = gh;
-        if (impact > 6 || hs > 10) this.damage((impact + hs * 0.6) * 2.4, 'crash');
+        if (this.fragile) {
+          if (impact > 6.5 || hs > 10) {
+            this.kill('Hit the ground');
+            return;
+          }
+          if (impact > 2.6 || hs > 3) this.touch();
+        } else if (impact > 6 || hs > 10) this.damage((impact + hs * 0.6) * 2.4, 'crash');
         if (thr <= 0 && hs < 6) {
           this.landed = true;
           this.vel.set(0, 0, 0);
@@ -198,7 +209,14 @@ export class Drone {
         const vn = this.vel.dot(nrm);
         if (vn < 0) {
           this.vel.addScaledVector(nrm, -vn * 1.35);
-          if (-vn > 4.5) this.damage(-vn * 2.6, 'crash');
+          if (this.fragile) {
+            if (-vn > 5.5) {
+              this.kill('Hit an obstacle');
+              return;
+            }
+            // Settling gently onto a roof is a landing, not a touch.
+            if (-vn > 0.4 && !(nrm.y > 0.7 && -vn < 2.6)) this.touch();
+          } else if (-vn > 4.5) this.damage(-vn * 2.6, 'crash');
         }
         if (nrm.y > 0.7 && thr <= 0 && this.vel.length() < 4) {
           this.landed = true; // settled on a roof
@@ -227,6 +245,34 @@ export class Drone {
       this.hull = 0;
       this.kill(kind === 'heat' ? 'Drone burned up' : kind === 'shot' ? 'Drone shot down' : 'Drone destroyed in a crash');
     }
+  }
+
+  /** A light contact. Debounced so one scrape counts once. */
+  touch() {
+    if (!this.alive || this.touchCd > 0) return;
+    this.touchCd = 0.6;
+    this.touches++;
+    this.shake = Math.min(1, this.shake + 0.35);
+    this.onDamage('touch', 0);
+  }
+
+  /** Back in the air at a checkpoint, motors spinning, nothing broken. */
+  revive(at: THREE.Vector3, yaw: number) {
+    this.alive = true;
+    this.hull = this.ph.hull;
+    this.deathReason = '';
+    this.pos.copy(at);
+    this.vel.set(0, 0, 0);
+    this.yaw = yaw;
+    this.pitch = this.roll = 0;
+    this.fallSpin = 0;
+    this.shake = 0;
+    this.armed = true;
+    this.spool = 1;
+    this.landed = false;
+    this.outOfBounds = false;
+    this.sPitch = this.sRoll = this.sYaw = NaN;
+    this.camPos.set(NaN, 0, 0);
   }
 
   kill(reason: string) {

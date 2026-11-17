@@ -7,6 +7,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { loadAssets } from './assets';
 import { Sound } from './audio';
+import { CourseRun, type CourseDef, type CourseResult } from './course';
 import type { DroneSpec, WorldId } from './data';
 import { Drone } from './drone';
 import { Hud } from './hud';
@@ -17,13 +18,14 @@ import { FireMission } from './missions/fire';
 import { ReliefMission } from './missions/relief';
 import { StrikeMission } from './missions/strike';
 import { Fx } from './particles';
-import { disposeScene, enableShadows, gfx } from './world';
+import { clearings, disposeScene, enableShadows, gfx } from './world';
 
 export interface Result {
   won: boolean;
   stars: number;
   reason: string;
   summary: [string, string][];
+  course?: CourseResult;
 }
 
 const FOV = 78;
@@ -64,6 +66,7 @@ const LensShader = {
       gl_FragColor = vec4(max(c, 0.0), 1.0);
     }`,
 };
+const CALM_AIR = new THREE.Vector3();
 const IDLE: Controls = { throttle: 0, yaw: 0, pitch: 0, roll: 0, gimbal: 0, mouseYaw: 0, mouseGimbal: 0, primary: false, secondary: false };
 
 export class Game {
@@ -75,6 +78,9 @@ export class Game {
   quality: Quality = 'high';
   /** Roam freely: no objectives, timer or failure. */
   free = false;
+  /** Set to fly a course instead of free roam. */
+  courseDef?: CourseDef;
+  course?: CourseRun;
   private respawnT = 0;
   readonly sound = new Sound();
   readonly input: Input;
@@ -194,6 +200,7 @@ export class Game {
     if (this.renderPass) this.renderPass.scene = this.scene;
     this.missionId = id;
     this.drone = undefined;
+    this.course = undefined;
     this.mode = 'orbit';
     this.paused = false;
     this.input.active = false;
@@ -205,8 +212,24 @@ export class Game {
 
   /** Put the player in a drone on the pad. Always starts from a fresh world. */
   start(spec: DroneSpec) {
+    const def = this.courseDef;
+    if (def) this.missionId = def.world;
     if (!this.missionId) return;
+    // Keep trees and boulders off the racing line.
+    clearings.length = 0;
+    if (def) {
+      let px: number | undefined, pz = 0;
+      for (const s of def.steps) {
+        const x = s.at[0], z = s.at[s.at.length - 1];
+        clearings.push({ x, z, r: s.kind === 'ring' || s.kind === 'slot' ? 14 : 9 });
+        // ...and along the line between steps, so canopies don't hang into it.
+        if (px !== undefined) for (const t of [0.25, 0.5, 0.75]) clearings.push({ x: px + (x - px) * t, z: pz + (z - pz) * t, r: 8 });
+        px = x;
+        pz = z;
+      }
+    }
     this.loadMission(this.missionId);
+    clearings.length = 0;
     const m = this.mission!;
     const d = (this.drone = new Drone(spec));
     d.pos.copy(m.spawn);
@@ -214,7 +237,12 @@ export class Game {
     d.onDamage = (kind) => {
       const r = this.input.remote;
       if (kind === 'dead') r.send({ buzz: [120, 60, 220] });
-      else if (kind !== 'heat') r.send({ buzz: kind === 'shot' ? 70 : 45 });
+      else if (kind === 'touch') {
+        r.send({ buzz: 30 });
+        this.sound.hit();
+        this.hud.flash(0.22);
+        return;
+      } else if (kind !== 'heat') r.send({ buzz: kind === 'shot' ? 70 : 45 });
       if (kind === 'dead') {
         this.sound.crash();
         this.fx.explosion(d.pos, 1.2);
@@ -227,6 +255,11 @@ export class Game {
       }
     };
     m.attach(d, (text, kind) => this.hud.toast(text, kind));
+    if (def) {
+      this.course = new CourseRun(def, m, this.scene, this.sound);
+      d.yaw = this.course.cp.yaw;
+      d.fragile = true;
+    }
     m.elapsed = 0;
     this.camera.add(d.rig);
     this.scene.add(d.body);
@@ -239,7 +272,7 @@ export class Game {
     this.hud.reset();
     this.hud.show(true);
     this.respawnT = 0;
-    this.hud.toast(this.free ? 'Free flight — roam anywhere, Esc for menu' : 'Hold climb to spin up and take off', 'info');
+    this.hud.toast(def ? def.name : this.free ? 'Free flight — Esc for the menu' : 'Hold climb to spin up and take off', 'info');
   }
 
   /** Cockpit (first-person) or chase (third-person) camera; remembered. */
@@ -324,6 +357,15 @@ export class Game {
     }
   }
 
+  private finishCourse(run: CourseRun) {
+    const r = run.result!;
+    this.mode = 'ended';
+    this.endTimer = 2.4;
+    this.result = { won: true, stars: r.marks, reason: '', summary: [], course: r };
+    this.hud.toast(r.clean ? 'Clean run' : 'Finished', 'good');
+    this.sound.win();
+  }
+
   private orbit(dt: number, m: Mission) {
     this.orbitAngle += dt * 0.07;
     const o = m.orbit;
@@ -340,9 +382,12 @@ export class Game {
       this.input.viewToggle = false;
       if (flying) this.toggleView();
     }
-    d.update(dt, c, { world: m.world, wind: m.wind, waterY: m.waterY });
-    if (flying && m.status === 'active' && !this.free) m.update(dt, c);
-    if (this.free && d.alive) d.battery = 1;
+    const run = this.course;
+    const calm = this.free || !!run;
+    d.update(dt, c, { world: m.world, wind: run ? CALM_AIR : m.wind, waterY: m.waterY });
+    if (flying && m.status === 'active' && !calm) m.update(dt, c);
+    if (calm && d.alive) d.battery = 1;
+    if (run && flying) run.update(dt, d);
 
     // Recharge while sitting on the home pad.
     const onPad = d.landed && Math.hypot(d.pos.x - m.pad.x, d.pos.z - m.pad.z) < 7;
@@ -370,7 +415,8 @@ export class Game {
       }
     }
 
-    this.hud.update(d, m, this.camera, dt, this.input.scheme, c, this.free);
+    this.hud.update(d, m, this.camera, dt, this.input.scheme, c, calm, run?.markers);
+    this.hud.course(run);
     if (this.input.remote.connected && (this.teleT -= dt) <= 0) {
       this.teleT = 0.25;
       const ground = Math.max(m.world.heightAt(d.pos.x, d.pos.z), m.waterY ?? -1e9);
@@ -383,7 +429,13 @@ export class Game {
       });
     }
 
-    if (flying && this.free) {
+    if (flying && run) {
+      // Courses never end in failure: a crash puts you back at the last checkpoint.
+      if (!d.alive && (this.respawnT += dt) > 1.2) {
+        this.respawnT = 0;
+        run.respawn(d);
+      } else if (run.done) this.finishCourse(run);
+    } else if (flying && this.free) {
       // Free flight never ends: after a crash, put a fresh drone on the pad.
       if (!d.alive && (this.respawnT += dt) > 2.5) this.start(d.spec);
     } else if (flying) {

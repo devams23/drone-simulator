@@ -4,7 +4,8 @@
 import * as THREE from 'three';
 import type { Drone } from './drone';
 import type { Controls, Scheme } from './input';
-import type { Mission } from './missions/base';
+import type { CourseRun } from './course';
+import type { Marker, Mission } from './missions/base';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const RADAR_RANGE = 230;
@@ -82,7 +83,40 @@ export class Hud {
   private sL = new THREE.Vector2();
   private sR = new THREE.Vector2();
   private v = new THREE.Vector3();
+  private coursePanel = (() => {
+    const el = document.createElement('div');
+    el.id = 'course';
+    el.hidden = true;
+    this.root.appendChild(el);
+    return el;
+  })();
   private dir = new THREE.Vector3();
+
+  /** Course card: name, clock, progress and whether the run is still clean. */
+  course(run?: CourseRun) {
+    const el = this.coursePanel;
+    el.hidden = !run;
+    if (!run) return;
+    if (el.dataset.id !== run.def.id) {
+      el.dataset.id = run.def.id;
+      el.innerHTML = `<div class="c-name"></div><div class="c-time"></div><div class="c-row"><span class="c-step"></span><span class="c-clean"></span></div><div class="c-hold"><i></i></div>`;
+      (el.querySelector('.c-name') as HTMLElement).textContent = run.def.name;
+    }
+    const t = run.time;
+    const txt = `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}.${Math.floor((t * 10) % 10)}`;
+    const set = (sel: string, v: string) => {
+      const e = el.querySelector(sel) as HTMLElement;
+      if (e.textContent !== v) e.textContent = v;
+    };
+    set('.c-time', txt);
+    set('.c-step', run.done ? 'Finished' : run.stepLabel);
+    const dirty = run.touches + run.crashes;
+    set('.c-clean', dirty ? `${run.touches} touch${run.touches === 1 ? '' : 'es'}${run.crashes ? ` · ${run.crashes} down` : ''}` : 'Clean');
+    el.classList.toggle('dirty', dirty > 0);
+    el.classList.toggle('over', t > run.def.par);
+    (el.querySelector('.c-hold i') as HTMLElement).style.transform = `scaleX(${run.hold.toFixed(3)})`;
+    el.classList.toggle('holding', run.hold > 0);
+  }
 
   show(on: boolean) {
     this.root.hidden = !on;
@@ -114,7 +148,7 @@ export class Hud {
     setTimeout(() => el.remove(), 3700);
   }
 
-  update(d: Drone, m: Mission, cam: THREE.PerspectiveCamera, dt: number, scheme: Scheme, c: Controls, free: boolean) {
+  update(d: Drone, m: Mission, cam: THREE.PerspectiveCamera, dt: number, scheme: Scheme, c: Controls, free: boolean, guide?: Marker[]) {
     const W = window.innerWidth;
     const H = window.innerHeight;
     if (!d.landed) this.flightT += dt;
@@ -131,7 +165,7 @@ export class Hud {
     const speed = Math.hypot(d.vel.x, d.vel.z);
     const deg = ((((-d.yaw * 180) / Math.PI) % 360) + 360) % 360;
 
-    this.updateMarkers(d, m, cam, W, H, free);
+    this.updateMarkers(d, m, cam, W, H, free, guide);
     if (!free) this.drawOverlay(d, m, deg, free);
     else this.overlay.fit();
     // The attitude ball is hidden in the decluttered HUD; skip drawing it.
@@ -167,7 +201,7 @@ export class Hud {
     this.payExtra.textContent = p.extra ?? '';
 
     if (free) {
-      this.missionName.textContent = 'FREE FLIGHT';
+      this.missionName.textContent = guide ? 'COURSE' : 'FREE FLIGHT';
       this.objective.hidden = true;
       this.state.textContent = '';
     } else {
@@ -433,8 +467,8 @@ export class Hud {
   }
 
   // ------------------------------------------------------------ markers
-  private updateMarkers(d: Drone, m: Mission, cam: THREE.PerspectiveCamera, W: number, H: number, free: boolean) {
-    const list = free ? [] : [...m.markers];
+  private updateMarkers(d: Drone, m: Mission, cam: THREE.PerspectiveCamera, W: number, H: number, free: boolean, guide?: Marker[]) {
+    const list = free ? [...(guide ?? [])] : [...m.markers];
     // Always offer a way home when things get tight.
     if (!free && (d.battery < 0.3 || d.hull < d.ph.hull * 0.4)) {
       list.push({ pos: new THREE.Vector3(m.pad.x, m.pad.y + 4, m.pad.z), icon: 'H', color: '#7dff6b', label: 'Home pad', visible: true });

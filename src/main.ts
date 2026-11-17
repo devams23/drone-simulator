@@ -2,6 +2,8 @@
 // briefing → flight → debrief. Every menu sits over a live 3D drone studio.
 import './style.css';
 import { DRONES, STAT_LABELS, physics, type DroneSpec, type WorldId } from './data';
+import { isOpen, progress, type CourseDef, type ModeId } from './course';
+import { COURSES, MODES, ladder } from './courses';
 import { Game, type Quality, type Result, type View } from './game';
 import { Garage, type Shot } from './garage';
 import type { Scheme } from './input';
@@ -13,14 +15,17 @@ const hudEl = document.getElementById('hud')!;
 const game = new Game(canvas);
 let garage: Garage | undefined;
 
-type Screen = 'loading' | 'intro' | 'title' | 'roam' | 'settings' | 'hangar' | 'brief' | 'pause' | 'debrief' | 'phone' | 'none';
+type Screen = 'loading' | 'intro' | 'title' | 'modes' | 'ladder' | 'roam' | 'settings' | 'hangar' | 'brief' | 'pause' | 'debrief' | 'phone' | 'none';
 let screen: Screen = 'none';
 let drone: DroneSpec = DRONES[1];
 let place: Place | undefined;
+/** The course picked from a ladder; undefined in free roam. */
+let course: CourseDef | undefined;
+let mode: ModeId = 'gates';
 let lastResult: Result | undefined;
 
 const ACCENT = '#7cc9c0';
-const SHOTS: Partial<Record<Screen, Shot>> = { intro: 'intro', title: 'title', settings: 'title', roam: 'roam', hangar: 'hangar', brief: 'brief' };
+const SHOTS: Partial<Record<Screen, Shot>> = { intro: 'intro', title: 'title', settings: 'title', modes: 'roam', ladder: 'roam', roam: 'roam', hangar: 'hangar', brief: 'brief' };
 
 interface Place {
   id: WorldId;
@@ -57,6 +62,12 @@ const ICON = {
   pine: svg('<path d="M12 3l5 7h-3l4 6H6l4-6H7z"/><path d="M12 16v5"/>'),
   sun: svg('<circle cx="12" cy="10" r="3.5"/><path d="M12 3v1.5M5 10H3.5M20.5 10H19M6.6 4.6l1 1M17.4 4.6l-1 1M3 19h18M6 16h12"/>'),
   wave: svg('<path d="M3 9c3-2 6 2 9 0s6-2 9 0M3 14c3-2 6 2 9 0s6-2 9 0M3 19c3-2 6 2 9 0s6-2 9 0"/>'),
+  gates: svg('<circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="4.5" opacity=".45"/>'),
+  courier: svg('<path d="M12 3v7"/><rect x="8" y="10" width="8" height="7" rx="1"/><path d="M5 21h14"/>'),
+  thread: svg('<rect x="4" y="8" width="16" height="8" rx="1"/><path d="M1 12h22" stroke-dasharray="2 2.5"/>'),
+  touch: svg('<ellipse cx="12" cy="17" rx="8" ry="3"/><path d="M12 3v9M9 9l3 3 3-3"/>'),
+  lock: svg('<rect x="6" y="11" width="12" height="9" rx="2"/><path d="M9 11V8a3 3 0 0 1 6 0v3"/>'),
+  fly: svg('<path d="M4 17c4-1 6-4 8-10 2 6 4 9 8 10"/><circle cx="12" cy="6" r="1.6"/>'),
   chev: svg('<path d="M10 7l5 5-5 5"/>'),
 };
 const PLACE_ICON: Record<string, string> = { canyon: ICON.canyon, fire: ICON.pine, strike: ICON.sun, relief: ICON.wave };
@@ -115,7 +126,8 @@ function title() {
       <div class="home-body">
         <div class="hero"><p>FPV drone flight</p><h1>SkyDuty</h1></div>
         <nav class="menu">
-          ${menuItem('roam', ICON.roam, 'Free roam', 'No objectives, no clock', true)}
+          ${menuItem('modes', ICON.fly, 'Fly', 'Gates, courier, threading, touchdown', true)}
+          ${menuItem('roam', ICON.roam, 'Free roam', 'No clock, no gates, no rules')}
           ${menuItem('settings', ICON.settings, 'Settings', 'Graphics, camera and controls')}
           ${menuItem('phone', ICON.phone, 'Phone remote', 'Use your phone as the transmitter')}
         </nav>
@@ -161,6 +173,82 @@ function roamScreen() {
   );
 }
 
+const fmt = (t?: number) => (t === undefined ? '—' : `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}.${Math.floor((t * 10) % 10)}`);
+const placeName = (id: WorldId) => PLACES.find((p) => p.id === id)!.name;
+
+/** Three marks: finished, clean, smooth. */
+function marks(on: [boolean, boolean, boolean]) {
+  return `<span class="marks">${(['Finished', 'Clean', 'Smooth'] as const).map((k, i) => `<i class="${on[i] ? 'on' : ''}" title="${k}">${k}</i>`).join('')}</span>`;
+}
+
+function modes() {
+  garage?.setAccent(ACCENT);
+  course = undefined;
+  const rec = progress();
+  show(
+    'modes',
+    `<section class="screen pick">
+      ${top(['Fly'])}
+      ${rail(
+        'Fly',
+        'Four disciplines. Each one opens its next course when you fly the last one clean.',
+        MODES.map((m) => {
+          const list = ladder(m.id);
+          const clean = list.filter((c) => rec[c.id]?.clean).length;
+          return `<button class="card" data-act="pick-mode" data-id="${m.id}" ${m.id === mode ? 'autofocus' : ''}>
+            <span class="card-top"><span class="ico">${ICON[m.id]}</span><span class="tally">${clean}<small>/${list.length || 3}</small></span></span>
+            <span class="role">${list.length ? `${list.length} courses` : 'Being surveyed'}</span>
+            <b>${m.name}</b>
+            <span class="blurb">${m.line}</span>
+            <span class="foot"><span>${clean ? `${clean} flown clean` : 'Not flown yet'}</span><span class="chev">${ICON.chev}</span></span>
+          </button>`;
+        }).join(''),
+      )}
+      <div class="actions"><button class="btn" data-act="title" data-back>Back <span class="key">ESC</span></button><span class="grow"></span><span class="hint">← → browse · Enter select</span></div>
+    </section>`,
+  );
+}
+
+function ladderScreen() {
+  garage?.setAccent(ACCENT);
+  const md = MODES.find((m) => m.id === mode)!;
+  const list = ladder(mode);
+  const rec = progress();
+  const firstOpen = list.findIndex((c, i) => isOpen(list, i) && !rec[c.id]?.clean);
+  show(
+    'ladder',
+    `<section class="screen pick">
+      ${top(['Fly', md.name])}
+      ${rail(
+        md.name,
+        md.rule,
+        list
+          .map((c, i) => {
+            const open = isOpen(list, i);
+            const r = rec[c.id] ?? {};
+            const focus = c.id === course?.id || (!course && i === Math.max(0, firstOpen));
+            return `<button class="card course ${open ? '' : 'locked'}" data-act="${open ? 'pick-course' : 'locked'}" data-id="${c.id}" ${focus ? 'autofocus' : ''}>
+              <span class="card-top"><span class="num">${String(i + 1).padStart(2, '0')}</span>${open ? marks([r.best !== undefined, !!r.clean, !!r.smooth]) : `<span class="ico">${ICON.lock}</span>`}</span>
+              <span class="role">${placeName(c.world)}</span>
+              <b>${c.name}</b>
+              <span class="blurb">${open ? c.line : `Fly ${list[i - 1].name} clean to open this one.`}</span>
+              <span class="foot"><span>Par ${fmt(c.par)}</span><span>${r.best !== undefined ? `Best ${fmt(r.best)}` : ''}</span></span>
+            </button>`;
+          })
+          .join(''),
+      )}
+      <div class="actions"><button class="btn" data-act="modes" data-back>Back <span class="key">ESC</span></button><span class="grow"></span><span class="hint">Finished · Clean · Smooth (under par)</span></div>
+    </section>`,
+  );
+}
+
+function pickCourse(c: CourseDef) {
+  course = c;
+  mode = c.mode;
+  place = PLACES.find((p) => p.id === c.world)!;
+  openWorld(c.world);
+}
+
 function unit(d: DroneSpec) {
   const ph = physics(d);
   return `<button class="unit ${d.id === drone.id ? 'on' : ''}" data-act="pick-drone" data-id="${d.id}">
@@ -178,7 +266,7 @@ function hangar() {
   show(
     'hangar',
     `<section class="screen" style="--hue:${hue}">
-      ${top(['Free roam', place?.name ?? '', 'Hangar'])}
+      ${top(course ? ['Fly', MODES.find((m) => m.id === course!.mode)!.name, course.name, 'Hangar'] : ['Free roam', place?.name ?? '', 'Hangar'])}
       <div class="hangar">
         <aside class="panel fleet"><h3 class="label">Fleet <em>${fleet.length}</em></h3>${list}</aside>
         <div class="ident">
@@ -200,7 +288,7 @@ function hangar() {
         </aside>
       </div>
       <div class="actions">
-        <button class="btn" data-act="roam" data-back>Back <span class="key">ESC</span></button>
+        <button class="btn" data-act="${course ? 'ladder' : 'roam'}" data-back>Back <span class="key">ESC</span></button>
         <span class="grow"></span>
         <button class="btn primary" data-act="brief" autofocus>Pre-flight <span class="key">↵</span></button>
       </div>
@@ -227,6 +315,7 @@ function controlsHtml(s: Scheme) {
 }
 
 function brief() {
+  if (course) return courseBrief(course);
   const hue = ACCENT;
   const where = place!.name;
   show(
@@ -258,6 +347,76 @@ function brief() {
         <button class="btn primary" data-act="free" autofocus>Take off <span class="key">↵</span></button>
       </div>
     </section>`,
+  );
+}
+
+function courseBrief(c: CourseDef) {
+  const md = MODES.find((m) => m.id === c.mode)!;
+  const r = progress()[c.id] ?? {};
+  show(
+    'brief',
+    `<section class="screen" style="--hue:${ACCENT}">
+      ${top(['Fly', md.name, c.name, 'Pre-flight'])}
+      <div class="brief">
+        <div class="lede">
+          <div class="label">${md.name} · ${placeName(c.world)} · ${drone.name}</div>
+          <h2 class="h">${c.name}</h2>
+          <p class="sub">${c.line}</p>
+        </div>
+        <div class="stack">
+          <div class="panel">
+            <h3 class="label">The run <em>Par ${fmt(c.par)}</em></h3>
+            <dl class="kv"><dt>Task</dt><dd>${md.rule}</dd></dl>
+            <dl class="kv"><dt>Contact</dt><dd>A brush costs you Clean. A hard hit puts you back at the last checkpoint, clock still running.</dd></dl>
+            <dl class="kv"><dt>Marks</dt><dd>${marks([r.best !== undefined, !!r.clean, !!r.smooth])}${r.best !== undefined ? ` <span class="best">Best ${fmt(r.best)}</span>` : ''}</dd></dl>
+          </div>
+          <div class="panel">
+            <h3 class="label">Controls <em>${game.input.scheme === 'rc' ? 'RC Mode 2' : 'Gamer'}</em></h3>
+            ${controlsHtml(game.input.scheme)}
+          </div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn" data-act="hangar" data-back>Hangar <span class="key">ESC</span></button>
+        <span class="grow"></span>
+        <button class="btn primary" data-act="launch" autofocus>Take off <span class="key">↵</span></button>
+      </div>
+    </section>`,
+  );
+}
+
+function courseDebrief(r: Result) {
+  const c = course!;
+  const cr = r.course!;
+  const list = ladder(c.mode);
+  const i = list.indexOf(c);
+  const next = list[i + 1];
+  const nextOpen = next && isOpen(list, i + 1);
+  const verdict = cr.clean && cr.smooth ? 'Clean and quick' : cr.clean ? 'Clean' : cr.touches ? `${cr.touches} touch${cr.touches === 1 ? '' : 'es'}` : 'Finished';
+  show(
+    'debrief',
+    `<section class="screen center">
+      <div class="modal won course-end">
+        <div>
+          <div class="label">${MODES.find((m) => m.id === c.mode)!.name} · ${c.name}</div>
+          <h2 class="clock">${fmt(cr.time)}</h2>
+          <p class="verdict">${verdict}${cr.newBest ? ' · <b>new best</b>' : ''}</p>
+          ${marks([true, cr.clean, cr.smooth])}
+        </div>
+        <div class="rows">
+          <div><span>Par</span><b>${fmt(cr.par)}</b></div>
+          <div><span>Touches</span><b>${cr.touches}</b></div>
+          <div><span>Crashes</span><b>${cr.crashes}</b></div>
+          <div><span>Best</span><b>${fmt(cr.best)}</b></div>
+        </div>
+        ${next && !nextOpen ? `<p class="reason">Fly it clean to open ${next.name}.</p>` : ''}
+        <div class="actions">
+          ${nextOpen ? `<button class="btn primary" data-act="pick-course" data-id="${next.id}" data-go="brief" autofocus>Next · ${next.name}</button><button class="btn" data-act="launch">Again</button>` : `<button class="btn primary" data-act="launch" autofocus>Again</button>`}
+          <button class="btn" data-act="ladder">Courses</button>
+        </div>
+      </div>
+    </section>`,
+    true,
   );
 }
 
@@ -364,7 +523,7 @@ function pause() {
     `<section class="screen center">
       <div class="modal" style="--hue:${ACCENT}">
         <div>
-          <div class="label">${place?.name ?? 'Free flight'} · ${drone.name}</div>
+          <div class="label">${course ? course.name : (place?.name ?? 'Free flight')} · ${drone.name}</div>
           <h2>Paused</h2>
         </div>
         ${controlsHtml(game.input.scheme)}
@@ -373,7 +532,7 @@ function pause() {
           <button class="btn primary" data-act="resume" autofocus>Resume <span class="key">ESC</span></button>
           <button class="btn" data-act="${game.free ? 'free' : 'launch'}">Restart</button>
           <button class="btn" data-act="phone">Phone remote</button>
-          <button class="btn" data-act="quit">Exit to hangar</button>
+          <button class="btn" data-act="quit">${course ? 'Exit to courses' : 'Exit to hangar'}</button>
         </div>
       </div>
     </section>`,
@@ -383,6 +542,7 @@ function pause() {
 
 function debrief(r: Result) {
   lastResult = r;
+  if (r.course && course) return courseDebrief(r);
   show(
     'debrief',
     `<section class="screen center">
@@ -404,7 +564,9 @@ function debrief(r: Result) {
 }
 
 function launch(free = false) {
+  if (free) course = undefined;
   game.free = free;
+  game.courseDef = free ? undefined : course;
   game.sound.init();
   hudEl.style.setProperty('--hue', ACCENT);
   show('none');
@@ -451,6 +613,26 @@ ui.addEventListener('click', (e) => {
       break;
     case 'roam':
       roamScreen();
+      break;
+    case 'modes':
+      modes();
+      break;
+    case 'pick-mode':
+      mode = id as ModeId;
+      course = undefined;
+      ladderScreen();
+      break;
+    case 'ladder':
+      game.toOrbit();
+      ladderScreen();
+      break;
+    case 'locked':
+      game.sound.beep(220, 0.06);
+      break;
+    case 'pick-course':
+      pickCourse(COURSES.find((c) => c.id === id)!);
+      if (el.dataset.go === 'brief') brief();
+      else hangar();
       break;
     case 'settings':
       settings();
@@ -510,7 +692,8 @@ ui.addEventListener('click', (e) => {
       break;
     case 'quit':
       game.toOrbit();
-      hangar();
+      if (course) ladderScreen();
+      else hangar();
       break;
   }
 });
@@ -590,7 +773,13 @@ function boot() {
   const hangId = known(qs.get('hangar'));
   const pick = (_id: WorldId) => DRONES.find((d) => d.id === qs.get('drone')) ?? drone;
   place = PLACES.find((p) => p.id === (qs.get('hangar') ?? qs.get('fly'))) ?? PLACES[0];
-  const screens: Record<string, () => void> = { title, roam: roamScreen, settings, brief, phone };
+  const screens: Record<string, () => void> = { title, modes, ladder: ladderScreen, roam: roamScreen, settings, brief, phone };
+  const cdef = COURSES.find((c) => c.id === qs.get('course'));
+  if (cdef) {
+    drone = pick(cdef.world);
+    pickCourse(cdef);
+    launch();
+  }
   if (hangId) {
     drone = pick(hangId);
     openWorld(hangId);
@@ -599,10 +788,12 @@ function boot() {
   } else if (screens[qs.get('screen') ?? '']) screens[qs.get('screen')!]();
   const v = qs.get('view');
   if (v === 'chase' || v === 'fpv') game.setView(v);
-  if (autoId) {
+  if (autoId && !cdef) {
     drone = pick(autoId);
     openWorld(autoId);
     launch(true);
+  }
+  if (autoId || cdef) {
     const air = Number(qs.get('air'));
     const d = game.drone;
     if (air > 0 && d) {
