@@ -461,27 +461,32 @@ function settings() {
   );
 }
 
-/** Shows a QR code that opens the phone remote on the same Wi-Fi. */
+/** Shows a QR code (and a short room code) that pairs a phone as the transmitter. */
 function phone() {
   const from = screen === 'pause' ? 'pause' : 'title';
   if (from === 'title') garage?.setAccent(ACCENT);
+  const remote = game.input.remote;
+  const lan = import.meta.env.DEV;
   const status = () =>
-    game.input.remote.connected
+    remote.connected
       ? '<span class="link on"><i></i>Phone connected</span>'
-      : '<span class="link"><i></i>Waiting for your phone</span>';
+      : remote.online
+        ? '<span class="link"><i></i>Waiting for your phone</span>'
+        : '<span class="link"><i></i>Connecting to the relay…</span>';
   show(
     'phone',
     `<section class="screen center">
       <div class="modal phone">
-        <div class="qr" id="qr"><span>Finding your network…</span></div>
+        <div class="qr" id="qr"><span>Making your code…</span></div>
         <div class="how">
           <div class="label">Controller</div>
           <h2>Phone remote</h2>
           <ol>
-            <li>Put the phone on the same Wi-Fi as this PC.</li>
-            <li>Scan the code with the phone camera.</li>
+            ${lan ? '<li>Put the phone on the same Wi-Fi as this PC.</li>' : ''}
+            <li>Scan the code with the phone camera, or open <b id="qr-site"></b> and type the room code.</li>
             <li>Tap Start and turn the phone sideways.</li>
           </ol>
+          <div class="room-code"><span class="label">Room</span><b>${remote.room}</b></div>
           <p class="url" id="qr-url"></p>
           <div id="qr-status">${status()}</div>
           <div class="actions"><button class="btn primary" data-act="${from === 'pause' ? 'pause-back' : 'title'}" data-back autofocus>Done <span class="key">ESC</span></button></div>
@@ -490,25 +495,25 @@ function phone() {
     </section>`,
     from === 'pause',
   );
-  fetch('/__skyduty/lan')
-    .then((r) => (r.ok ? r.json() : Promise.reject()))
-    .then((info: { url: string | null }) => {
-      const box = document.getElementById('qr');
-      if (!box) return;
-      if (!info.url) {
-        box.innerHTML = '<span>No network found. Start the game with <b>npm run dev</b> on a PC that is on Wi-Fi.</span>';
-        return;
-      }
-      const q = qrcode(0, 'M');
-      q.addData(info.url);
-      q.make();
-      box.innerHTML = q.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
-      document.getElementById('qr-url')!.textContent = info.url;
-    })
-    .catch(() => {
-      const box = document.getElementById('qr');
-      if (box) box.innerHTML = '<span>Phone control needs the dev server: run <b>npm run dev</b>.</span>';
-    });
+  const draw = (base: string) => {
+    const url = `${base}?room=${remote.room}`;
+    const box = document.getElementById('qr');
+    if (!box) return;
+    const q = qrcode(0, 'M');
+    q.addData(url);
+    q.make();
+    box.innerHTML = q.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+    document.getElementById('qr-url')!.textContent = url;
+    document.getElementById('qr-site')!.textContent = base.replace(/^https?:\/\//, '');
+  };
+  const here = `${location.origin}/phone.html`;
+  if (!lan) draw(here);
+  else
+    // On the dev server, localhost means nothing to the phone: use the PC's Wi-Fi address.
+    fetch('/__skyduty/lan')
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((info: { url: string | null }) => draw(info.url ?? here))
+      .catch(() => draw(here));
   const tick = setInterval(() => {
     const el = document.getElementById('qr-status');
     if (!el || screen !== 'phone') return clearInterval(tick);

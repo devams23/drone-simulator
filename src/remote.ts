@@ -1,5 +1,7 @@
 // Phone controller link, game side. The phone page (phone.html) streams its
-// stick positions through the dev server; we hand back telemetry and rumble.
+// stick positions through the relay (server/relay.mjs) in a shared room; we
+// hand back telemetry and rumble.
+import { Link, newRoom, ROOM_RE } from './link';
 
 export interface PadMsg {
   id: string;
@@ -30,10 +32,21 @@ export class Remote {
   private seenId = '';
   onConnect: () => void = () => {};
 
+  /** Room code shared with the phone. Kept for the tab so a reload stays paired. */
+  readonly room: string;
+  private link: Link;
+
   constructor() {
-    const hot = import.meta.hot;
-    if (!hot) return;
-    hot.on('skyduty:pad', (m: PadMsg) => {
+    let room = '';
+    try {
+      room = sessionStorage.getItem('skyduty.room') ?? '';
+      if (!ROOM_RE.test(room)) sessionStorage.setItem('skyduty.room', (room = newRoom()));
+    } catch {
+      room = newRoom();
+    }
+    this.room = room;
+    this.link = new Link(room, 'game');
+    this.link.on('pad', (m: PadMsg) => {
       const fresh = !this.connected || m.id !== this.seenId;
       this.pad = m;
       this.last = performance.now();
@@ -44,11 +57,12 @@ export class Remote {
       }
     });
     // Heartbeat so the phone shows it is linked even before take-off.
-    setInterval(() => hot.send('skyduty:fb', {}), 600);
+    setInterval(() => this.link.send('fb', {}), 600);
   }
 
-  get available() {
-    return !!import.meta.hot;
+  /** Is the game itself on the relay (the phone may still be missing)? */
+  get online() {
+    return this.link.up;
   }
 
   get connected() {
@@ -64,6 +78,6 @@ export class Remote {
   }
 
   send(m: FbMsg) {
-    import.meta.hot?.send('skyduty:fb', m);
+    this.link.send('fb', m);
   }
 }

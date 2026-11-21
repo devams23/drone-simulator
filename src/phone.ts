@@ -1,9 +1,10 @@
 // Phone remote: two transmitter gimbals (Mode 2) whose state is streamed to
-// the game through the dev server's WebSocket. Loaded by phone.html only.
+// the game through the relay, in the room named by ?room= (from the QR code).
+// Loaded by phone.html only.
 import type { PadMsg, FbMsg } from './remote';
+import { Link, ROOM_RE } from './link';
 
 const $ = (id: string) => document.getElementById(id)!;
-const hot = import.meta.hot;
 const id = Math.random().toString(36).slice(2, 8);
 
 const state: PadMsg = { id, thr: -1, yaw: 0, pitch: 0, roll: 0, gim: 0, pri: false, sec: false, view: 0 };
@@ -112,8 +113,33 @@ viewBtn.addEventListener('pointerdown', () => {
 });
 viewBtn.addEventListener('pointerup', () => viewBtn.classList.remove('down'));
 
+// Room: from the QR link, or typed in on the start screen.
+let link: Link | undefined;
+const codeIn = $('code') as HTMLInputElement;
+function join(code: string) {
+  code = code.trim().toUpperCase();
+  if (!ROOM_RE.test(code)) return false;
+  if (link?.room !== code) {
+    link?.close();
+    link = new Link(code, 'phone');
+    link.on('fb', feedback);
+    history.replaceState(null, '', `?room=${code}`);
+  }
+  $('room').textContent = code;
+  return true;
+}
+const fromUrl = new URLSearchParams(location.search).get('room') ?? '';
+if (join(fromUrl)) $('start').classList.add('has-room');
+codeIn.addEventListener('input', () => (codeIn.value = codeIn.value.toUpperCase().replace(/[^A-Z0-9]/g, '')));
+
 if (location.search.includes('demo')) $('start').classList.add('gone');
 $('go').addEventListener('click', async () => {
+  if (!link && !join(codeIn.value)) {
+    codeIn.focus();
+    codeIn.classList.add('bad');
+    buzz([30, 40, 30]);
+    return;
+  }
   $('start').classList.add('gone');
   try {
     await document.documentElement.requestFullscreen?.({ navigationUI: 'hide' });
@@ -132,12 +158,12 @@ setInterval(() => {
   state.gim = (held.has('up') ? 1 : 0) - (held.has('down') ? 1 : 0);
   state.pri = held.has('pri');
   state.sec = held.has('sec');
-  hot?.send('skyduty:pad', state);
+  link?.send('pad', state);
 }, 33);
 
 // Feedback from the game: telemetry and rumble.
 let lastFb = 0;
-hot?.on('skyduty:fb', (m: FbMsg) => {
+function feedback(m: FbMsg) {
   lastFb = performance.now();
   if (m.buzz) buzz(m.buzz);
   if (m.alt !== undefined) {
@@ -149,9 +175,9 @@ hot?.on('skyduty:fb', (m: FbMsg) => {
     ($('hullbar') as HTMLElement).style.width = `${(m.hull ?? 1) * 100}%`;
     $('viewtxt').textContent = m.view === 'chase' ? 'CHASE' : 'COCKPIT';
   }
-});
+}
 setInterval(() => {
-  const on = !!hot && performance.now() - lastFb < 1500;
+  const on = !!link?.up && performance.now() - lastFb < 1500;
   $('link').classList.toggle('on', on);
-  $('linktxt').textContent = !hot ? 'Offline' : on ? 'Linked' : 'Waiting';
+  $('linktxt').textContent = !link ? 'No room' : !link.up ? 'Offline' : on ? 'Linked' : 'Waiting';
 }, 300);

@@ -104,6 +104,15 @@
       @media (orientation: portrait) { #rotate { display: grid; } }
       #start { display: grid; }
       #start.gone { display: none; }
+      .code { display: block; margin: 18px auto 0; width: 180px; height: 46px; border-radius: 12px; text-align: center;
+        font: 500 22px Inter, sans-serif; letter-spacing: 0.32em; text-transform: uppercase; color: var(--ink); user-select: text; -webkit-user-select: text;
+        background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.16); outline: none; }
+      .code:focus { border-color: var(--accent); }
+      .code.bad { border-color: var(--warn); }
+      .code::placeholder { color: var(--dim); letter-spacing: 0.2em; font-size: 14px; }
+      #start.has-room .code, #start.has-room .ask { display: none; }
+      .ask { margin-top: 14px !important; font-size: 12px !important; }
+      .brand .room { font-size: 10px; letter-spacing: 0.2em; color: var(--dim); }
       .go { margin-top: 22px; height: 46px; padding: 0 28px; width: auto; border-radius: 23px; font-size: 12px; background: #e9eef2; color: #1b232c; border: 0; }
     </style>
   </head>
@@ -118,7 +127,7 @@
 
       <section class="console">
         <div class="lcd">
-          <div class="brand"><b>SKYDUTY</b><span class="link" id="link"><i></i><span id="linktxt">Searching</span></span></div>
+          <div class="brand"><b>SKYDUTY</b><span class="room" id="room">----</span><span class="link" id="link"><i></i><span id="linktxt">Searching</span></span></div>
           <div class="tele">
             <div><label>ALT</label><b id="alt">0<small>m</small></b></div>
             <div><label>SPEED</label><b id="spd">0<small>km/h</small></b></div>
@@ -149,6 +158,8 @@
       <div>
         <h1>SkyDuty Remote</h1>
         <p>Left stick: throttle up and down (it stays where you leave it), yaw left and right. Right stick: fly forward, back and sideways.</p>
+        <p class="ask">Type the code shown on the game screen.</p>
+        <input class="code" id="code" maxlength="8" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" />
         <button class="btn go" id="go">Start</button>
       </div>
     </div>

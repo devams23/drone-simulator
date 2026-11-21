@@ -1,9 +1,11 @@
-// Dev server with a tiny relay for the phone controller: the phone page and
-// the game both talk over Vite's own WebSocket, and the server passes each
-// message on to everyone else. No extra server or port needed.
+// Dev server: mounts the same phone relay the production server runs
+// (server/relay.mjs) on /relay, and tells the game this PC's Wi-Fi address so
+// the QR code works from a phone.
 import { networkInterfaces } from 'node:os';
 import { resolve } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
+// @ts-expect-error plain JS module shared with the production server
+import { attachRelay } from './server/relay.mjs';
 
 /** Best guess at this PC's address on the home network. */
 function lanAddress() {
@@ -17,9 +19,7 @@ function phoneRelay(): Plugin {
   return {
     name: 'skyduty-phone-relay',
     configureServer(server) {
-      for (const ev of ['skyduty:pad', 'skyduty:fb']) {
-        server.ws.on(ev, (data) => server.ws.send(ev, data));
-      }
+      if (server.httpServer) attachRelay(server.httpServer);
       server.middlewares.use('/__skyduty/lan', (_req, res) => {
         const ip = lanAddress();
         const port = server.config.server.port ?? 5173;

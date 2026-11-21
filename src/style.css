@@ -521,6 +521,8 @@ kbd { justify-self: start; font: 500 11.5px/1 var(--body); padding: 5px 8px; bor
 .modal.phone ol { margin: 12px 0 0; padding-left: 18px; color: var(--ink-2); font-size: 14px; line-height: 1.7; font-weight: 300; }
 .modal.phone .url { margin: 10px 0 8px; font-size: 12px; color: var(--ink-2); word-break: break-all; }
 .modal.phone .actions { margin-top: 14px; }
+.modal.phone .room-code { display: flex; align-items: baseline; gap: 12px; margin-top: 12px; }
+.modal.phone .room-code b { font: 400 30px/1 var(--mono); letter-spacing: 0.24em; color: var(--ink); }
 .link { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
 .link i { width: 8px; height: 8px; border-radius: 50%; background: #ffd08a; box-shadow: 0 0 8px #ffd08a; animation: blink 1.4s steps(2) infinite; }
 .link.on i { background: #9ff0c4; box-shadow: 0 0 8px #9ff0c4; animation: none; }
