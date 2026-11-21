@@ -36,36 +36,10 @@ function livery(spec: DroneSpec) {
     g.fillStyle = hex(spec.color);
     g.fillRect(0, 0, 512, 1024);
 
-    if (spec.mission === 'strike') {
-      // Soft two-tone camouflage.
-      for (let i = 0; i < 26; i++) {
-        g.fillStyle = i % 2 ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.07)';
-        g.beginPath();
-        g.ellipse(Math.random() * 512, Math.random() * 1024, 50 + Math.random() * 90, 30 + Math.random() * 60, Math.random() * 3, 0, 7);
-        g.fill();
-      }
-    } else if (spec.mission === 'fire') {
-      // High-visibility chevrons across the tail.
-      g.save();
-      g.beginPath();
-      g.rect(0, 800, 512, 130);
-      g.clip();
-      for (let i = -4; i < 12; i++) {
-        g.fillStyle = i % 2 ? accent : '#16181c';
-        g.beginPath();
-        g.moveTo(i * 70, 930);
-        g.lineTo(i * 70 + 70, 930);
-        g.lineTo(i * 70 + 200, 800);
-        g.lineTo(i * 70 + 130, 800);
-        g.fill();
-      }
-      g.restore();
-    } else {
       // Clean courier stripes.
       g.fillStyle = accent;
       g.fillRect(0, 820, 512, 46);
       g.fillRect(0, 880, 512, 14);
-    }
 
     // Nose band and centre spine.
     g.fillStyle = accent;
@@ -215,7 +189,7 @@ export function buildDrone(spec: DroneSpec, opts: { fpv?: boolean } = {}): Drone
   const b = spec.bulk;
   const heavy = spec.tier === 'Heavy';
   const light = spec.tier === 'Light';
-  const military = spec.mission === 'strike';
+  const military = false;
   const group = new THREE.Group();
 
   // ---------------------------------------------------------- materials
@@ -413,64 +387,6 @@ export function buildDrone(spec: DroneSpec, opts: { fpv?: boolean } = {}): Drone
     add(new THREE.CircleGeometry(0.02 * b, 24).rotateY(Math.PI), glass, 0, gy - 0.07 * b, gz - 0.0555 * b);
     add(new THREE.TorusGeometry(0.022 * b, 0.0028, 8, 24), anod, 0, gy - 0.07 * b, gz - 0.055 * b);
 
-    // ------------------------------------------------- mission payload
-    const py = -bot * 0.9;
-    if (spec.mission === 'fire') {
-      const tank = add(
-        new THREE.CapsuleGeometry(0.075 * b, 0.26 * b, 8, 20).rotateX(Math.PI / 2),
-        new THREE.MeshPhysicalMaterial({ color: 0x2f9be0, roughness: 0.12, metalness: 0, clearcoat: 1, transparent: true, opacity: 0.86 }),
-        0, py - 0.085 * b, L * 0.1,
-      );
-      tank.scale.x = 1.25;
-      for (const z of [-0.07, 0.11]) {
-        const strap = add(new THREE.TorusGeometry(0.08 * b, 0.007, 8, 28), steel, 0, py - 0.085 * b, L * 0.1 + z * b);
-        strap.scale.x = 1.25;
-      }
-      add(new THREE.CylinderGeometry(0.02 * b, 0.02 * b, 0.012, 14), anod, 0, py - 0.005, L * 0.2);
-      // Spray boom reaching forward under the nose.
-      tube(V(0.07 * b, py - 0.1 * b, -L * 0.06), V(0.09 * b, py - 0.12 * b, -L * 0.5), 0.009, 0.008, steel);
-      add(new THREE.ConeGeometry(0.016 * b, 0.04 * b, 12).rotateX(-Math.PI / 2), anod, 0.09 * b, py - 0.12 * b, -L * 0.52);
-    } else if (spec.mission === 'strike') {
-      for (const side of [-1, 1]) {
-        const x = side * W * 0.36;
-        add(new THREE.BoxGeometry(0.05 * b, 0.05 * b, 0.2 * b), paint, x, py - 0.03 * b, -L * 0.05);
-        tube(V(x, py - 0.035 * b, -L * 0.15), V(x, py - 0.035 * b, -L * 0.52), 0.011 * b, 0.009 * b, dark);
-        add(new THREE.CylinderGeometry(0.015 * b, 0.015 * b, 0.035 * b, 10).rotateX(Math.PI / 2), matte, x, py - 0.035 * b, -L * 0.53);
-        add(new THREE.BoxGeometry(0.03 * b, 0.02 * b, 0.07 * b), copper, x + side * 0.03 * b, py - 0.03 * b, 0.02 * b);
-      }
-      const n = Math.min(4, spec.rockets ?? 2);
-      for (let i = 0; i < n; i++) {
-        const x = (i - (n - 1) / 2) * 0.05 * b;
-        add(new THREE.CylinderGeometry(0.014 * b, 0.014 * b, 0.2 * b, 10).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xd8dade, roughness: 0.4, metalness: 0.5 }), x, py - 0.075 * b, L * 0.02);
-        add(new THREE.ConeGeometry(0.014 * b, 0.04 * b, 10).rotateX(-Math.PI / 2), glow(0xd9342b, 0.3), x, py - 0.075 * b, L * 0.02 - 0.12 * b);
-      }
-      add(new THREE.BoxGeometry(Math.max(1, n) * 0.05 * b, 0.012, 0.12 * b), dark, 0, py - 0.055 * b, L * 0.02);
-    } else if (spec.mission === 'relief') {
-      // Winch frame with a strapped crate.
-      add(new THREE.BoxGeometry(0.16 * b, 0.014, 0.16 * b), dark, 0, py - 0.01, L * 0.05);
-      const c = 0.17 * b;
-      const cy = py - 0.05 * b - c / 2;
-      const wood = canvasTex(128, 128, (g) => {
-        g.fillStyle = '#b98345';
-        g.fillRect(0, 0, 128, 128);
-        for (let i = 0; i < 5; i++) {
-          g.fillStyle = `rgba(60,35,10,${0.12 + (i % 2) * 0.1})`;
-          g.fillRect(0, i * 26, 128, 23);
-        }
-        g.strokeStyle = '#6b4520';
-        g.lineWidth = 10;
-        g.strokeRect(5, 5, 118, 118);
-        g.beginPath();
-        g.moveTo(8, 8);
-        g.lineTo(120, 120);
-        g.stroke();
-      });
-      add(new THREE.BoxGeometry(c * 1.15, c, c * 1.15), new THREE.MeshStandardMaterial({ map: wood, roughness: 0.85 }), 0, cy, L * 0.05);
-      add(new THREE.BoxGeometry(c * 1.17, c * 1.02, 0.02 * b), anod, 0, cy, L * 0.05);
-      for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-        tube(V(x * 0.06 * b, py - 0.015, L * 0.05 + z * 0.06 * b), V(x * c * 0.5, cy + c / 2, L * 0.05 + z * c * 0.5), 0.003, 0.003, steel);
-      }
-    }
   }
 
   return {

@@ -222,6 +222,7 @@ export class CanyonMission extends Mission {
 
     // ---- basalt columns along the wall feet, plus free-standing stacks
     const cols: { x: number; z: number; r: number; h: number; y: number }[] = [];
+    const crowns: typeof cols = [];
     for (let z = ZH + 6; z < 300; z += 2.6) {
       for (const side of [-1, 1]) {
         if (r() < 0.25) continue;
@@ -249,15 +250,18 @@ export class CanyonMission extends Mission {
         const a = r() * Math.PI * 2;
         const d = Math.sqrt(r()) * 3.6;
         const cr = 0.9 + r() * 0.6;
-        cols.push({ x: x0 + Math.cos(a) * d, z: z + Math.sin(a) * d, r: cr, h: h * (1 - d / 6) * (0.75 + r() * 0.25), y: y0 });
+        const k = 0.75 + r() * 0.25;
+        cols.push({ x: x0 + Math.cos(a) * d, z: z + Math.sin(a) * d, r: cr, h: d < 2.4 ? h : h * (1 - d / 6) * k, y: y0 });
         rad = Math.max(rad, d + cr);
       }
-      w.addBox(x0, y0, z, rad * 1.6, h, rad * 1.6);
+      // Flat crown: one broad column in the middle makes a landing ledge.
+      crowns.push({ x: x0, z, r: 3, h, y: y0 });
+      w.addBox(x0, y0, z, rad * 1.6, h * 0.75, rad * 1.6);
     }
     const colGeo = new THREE.CylinderGeometry(1, 1, 1, 6, 1).translate(0, 0.5, 0);
     const uv = colGeo.attributes.uv;
     for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 2, uv.getY(i) * 3);
-    const colMesh = new THREE.InstancedMesh(colGeo, w.pbr('mossy_rock', 0x7a7d82, 0.9), cols.length);
+    const colMesh = new THREE.InstancedMesh(colGeo, w.pbr('mossy_rock', 0x7a7d82, 0.9), cols.length + crowns.length);
     const m4 = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const e = new THREE.Euler();
@@ -267,6 +271,12 @@ export class CanyonMission extends Mission {
       m4.compose(new THREE.Vector3(c.x, c.y, c.z), q, new THREE.Vector3(c.r, c.h + 1, c.r));
       colMesh.setMatrixAt(i, m4);
       if (c.h > 5) w.addBox(c.x, c.y, c.z, c.r * 1.7, c.h + 1, c.r * 1.7);
+    });
+    crowns.forEach((c, i) => {
+      q.setFromEuler(e.set(0, i * 0.7, 0));
+      m4.compose(new THREE.Vector3(c.x, c.y, c.z), q, new THREE.Vector3(c.r, c.h + 1, c.r));
+      colMesh.setMatrixAt(cols.length + i, m4);
+      w.addBox(c.x, c.y, c.z, c.r * 1.7, c.h + 1, c.r * 1.7);
     });
     colMesh.castShadow = colMesh.receiveShadow = true;
     this.scene.add(colMesh);

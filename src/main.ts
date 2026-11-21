@@ -35,9 +35,8 @@ interface Place {
 }
 const PLACES: Place[] = [
   { id: 'canyon', name: 'Basalt Gorge', terrain: 'Canyon · river · waterfalls', blurb: 'A glacial river between mossy basalt walls. Thread the stacks, chase the falls to the headwall.' },
-  { id: 'fire', name: 'Pine Valley', terrain: 'Forest · lake · village', blurb: 'Tall conifers, a lakeside village and ridgelines to thread between.' },
-  { id: 'strike', name: 'Red Mesa', terrain: 'Desert · sandstone', blurb: 'Sandstone towers and wide open washes under a low, warm sun.' },
-  { id: 'relief', name: 'Riverlands', terrain: 'Floodplain · farms', blurb: 'Flooded fields, rooftops and tree lines after the storm has passed.' },
+  { id: 'ice', name: 'Glacier Pass', terrain: 'Glacier · frozen lake · peaks', blurb: 'A valley carved by ice. Skim the frozen lake, thread the arch, climb the icefall between the seracs.' },
+  { id: 'city', name: 'Marine Bay', terrain: 'City · sea road · beach', blurb: 'A seaside city at golden hour. Ride the curve of the sea road, climb the towers, cross the bridge to the village beyond.' },
 ];
 
 // ------------------------------------------------------------ saved progress
@@ -55,10 +54,9 @@ const ICON = {
   roam: svg('<path d="M3 19l6-9 4 6 3-4 5 7z"/><circle cx="16.5" cy="6.5" r="1.8"/>'),
   settings: svg('<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>'),
   phone: svg('<rect x="3" y="7" width="18" height="10" rx="3"/><circle cx="8" cy="12" r="1.6"/><circle cx="16" cy="12" r="1.6"/>'),
-  fire: svg('<path d="M12 3c1 3 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5 0 2 1 3 2 3 0-3-1-5 1-8.5z"/>'),
-  strike: svg('<circle cx="12" cy="12" r="7"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="1"/>'),
-  relief: svg('<path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M4 8l8 4 8-4M12 12v8"/>'),
   canyon: svg('<path d="M3 19l5-12 3 6 2-3 8 9z"/><path d="M9 19c1-2 3-2 4-4"/>'),
+  ice: svg('<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9"/><path d="M9.5 4.5L12 6l2.5-1.5M9.5 19.5L12 18l2.5 1.5"/>'),
+  city: svg('<path d="M3 21h18M5 21V10h4v11M10 21V4h5v17M16 21v-8h3v8"/>'),
   pine: svg('<path d="M12 3l5 7h-3l4 6H6l4-6H7z"/><path d="M12 16v5"/>'),
   sun: svg('<circle cx="12" cy="10" r="3.5"/><path d="M12 3v1.5M5 10H3.5M20.5 10H19M6.6 4.6l1 1M17.4 4.6l-1 1M3 19h18M6 16h12"/>'),
   wave: svg('<path d="M3 9c3-2 6 2 9 0s6-2 9 0M3 14c3-2 6 2 9 0s6-2 9 0M3 19c3-2 6 2 9 0s6-2 9 0"/>'),
@@ -70,7 +68,7 @@ const ICON = {
   fly: svg('<path d="M4 17c4-1 6-4 8-10 2 6 4 9 8 10"/><circle cx="12" cy="6" r="1.6"/>'),
   chev: svg('<path d="M10 7l5 5-5 5"/>'),
 };
-const PLACE_ICON: Record<string, string> = { canyon: ICON.canyon, fire: ICON.pine, strike: ICON.sun, relief: ICON.wave };
+const PLACE_ICON: Record<string, string> = { canyon: ICON.canyon, ice: ICON.ice, city: ICON.city };
 
 const rating = (n: number) => `<span class="rating">${[0, 1, 2].map((i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span>`;
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -767,7 +765,7 @@ function boot() {
   garage = new Garage();
   document.body.insertBefore(garage.canvas, ui);
   garage.setDrone(drone);
-  game.loadMission('fire');
+  game.loadMission('city');
   intro();
 
   // Dev shortcuts: ?fly=strike (optionally &drone=mauler&air=30) jumps straight
@@ -793,6 +791,7 @@ function boot() {
   } else if (screens[qs.get('screen') ?? '']) screens[qs.get('screen')!]();
   const v = qs.get('view');
   if (v === 'chase' || v === 'fpv') game.setView(v);
+  if (qs.has('audit')) void import('./dev/audit').then((a) => a.runAudit(game, qs.get('audit')));
   if (autoId && !cdef) {
     drone = pick(autoId);
     openWorld(autoId);

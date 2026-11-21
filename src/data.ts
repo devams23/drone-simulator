@@ -1,8 +1,7 @@
-// Static game data: drone roster and mission cards.
+// Static game data: the drone roster.
 
-export type MissionId = 'fire' | 'strike' | 'relief';
-/** Every loadable world: the three operations plus free-roam-only maps. */
-export type WorldId = MissionId | 'canyon';
+/** Every loadable world. */
+export type WorldId = 'canyon' | 'ice' | 'city';
 
 export interface DroneStats {
   speed: number; // 1-10
@@ -18,8 +17,6 @@ export interface DroneSpec {
   name: string;
   /** Short hull code painted on the canopy. */
   code: string;
-  /** Legacy: operation-specific livery and payload. The current fleet has none. */
-  mission?: MissionId;
   tier: 'Light' | 'Balanced' | 'Heavy';
   tagline: string;
   stats: DroneStats;
@@ -79,57 +76,6 @@ export const DRONES: DroneSpec[] = [
   },
 ];
 
-export interface MissionCard {
-  id: MissionId;
-  name: string;
-  role: string;
-  icon: string;
-  blurb: string;
-  objective: string;
-  fail: string;
-  tool: string;
-  tips: string[];
-  hue: string;
-}
-
-export const MISSIONS: MissionCard[] = [
-  {
-    id: 'fire', name: 'Wildfire Response', role: 'Firefighter', icon: '🔥', hue: '#e8915a',
-    blurb: 'Fire is closing on Pinebrook village. Carry water and put it out.',
-    objective: 'Extinguish every fire.',
-    fail: 'The village damage meter fills, or you lose the drone.',
-    tool: 'Water jet — hold to spray where the reticle points.',
-    tips: [
-      'Tilt the camera down and spray from 8–15 m above the flames.',
-      'Hover low over the lake to refill the tank.',
-      'Flying into flames cooks the drone. House fires hurt the village most.',
-    ],
-  },
-  {
-    id: 'strike', name: 'Outpost Strike', role: 'Gunship', icon: '🎯', hue: '#d9675f',
-    blurb: 'A hostile outpost in the Red Mesa must be taken off the map.',
-    objective: 'Destroy the HQ, the radar and both fuel tanks.',
-    fail: 'The drone is shot down or the battery dies.',
-    tool: 'Cannon (primary) and rockets (secondary).',
-    tips: [
-      'Turrets shoot back. Keep moving — speed spoils their aim.',
-      'Knock out the radar first and their accuracy drops.',
-      'Land on your pad to repair, rearm and recharge.',
-    ],
-  },
-  {
-    id: 'relief', name: 'Flood Relief', role: 'Cargo', icon: '📦', hue: '#5fa8d8',
-    blurb: 'The river took the town. Families are stranded on rooftops.',
-    objective: 'Drop a supply crate on every marked rooftop.',
-    fail: 'Time runs out, or you lose the drone.',
-    tool: 'Crate release — one press, one crate.',
-    tips: [
-      'Hover low over the depot pad to load crates.',
-      'The yellow ring on the ground shows where a crate would land.',
-      'Wind pushes the parachute. Drop from low and upwind.',
-    ],
-  },
-];
 
 export const STAT_LABELS: [keyof DroneStats, string][] = [
   ['speed', 'Speed'],

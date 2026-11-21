@@ -14,9 +14,8 @@ import { Hud } from './hud';
 import { Input, type Controls } from './input';
 import type { Mission } from './missions/base';
 import { CanyonMission } from './missions/canyon';
-import { FireMission } from './missions/fire';
-import { ReliefMission } from './missions/relief';
-import { StrikeMission } from './missions/strike';
+import { IceMission } from './missions/ice';
+import { CityMission } from './missions/city';
 import { Fx } from './particles';
 import { clearings, disposeScene, enableShadows, gfx } from './world';
 
@@ -194,7 +193,7 @@ export class Game {
     this.fx.addTo(this.scene);
     this.camera.clear();
     this.scene.add(this.camera);
-    const Ctor = { fire: FireMission, strike: StrikeMission, relief: ReliefMission, canyon: CanyonMission }[id];
+    const Ctor = { canyon: CanyonMission, ice: IceMission, city: CityMission }[id];
     this.mission = new Ctor(this.scene, this.fx, this.sound);
     enableShadows(this.scene);
     if (this.renderPass) this.renderPass.scene = this.scene;
