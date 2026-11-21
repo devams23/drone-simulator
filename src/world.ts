@@ -51,6 +51,10 @@ export interface TerrainCfg {
   cliffs?: boolean;
   /** A ring of ridged mountains around the valley: rises from `from` metres out, peaks near `height`. */
   mountains?: { from: number; height: number };
+  /** Slope range over which the ground turns to the third texture (default 0.2..0.36). */
+  rockSlope?: [number, number];
+  /** Turns the third (rock) texture grey and tints it, e.g. cold granite under snow. */
+  rockTint?: number;
 }
 
 /** Graphics settings shared with the renderer. */
@@ -91,7 +95,7 @@ export function boxGeo(w: number, h: number, d: number, tile = 3) {
   return g;
 }
 
-function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void) {
+export function canvasTex(w: number, h: number, draw: (g: CanvasRenderingContext2D) => void) {
   const cv = document.createElement('canvas');
   cv.width = w;
   cv.height = h;
@@ -157,7 +161,8 @@ export class World {
     // Mountains stay green on their lower slopes; only the tops and steep faces turn to rock.
     const reach = t.mountains ? t.mountains.height * 0.75 * smooth(t.mountains.from, t.mountains.from + 320, Math.hypot(x, z)) : 0;
     const high = (h - t.base) / Math.max(1, t.amp * 1.5 + reach);
-    const c = Math.max(smooth(0.2, 0.36, slope), smooth(0.8, 1.0, high + (noise2(x * 0.03, z * 0.03) - 0.5) * 0.3));
+    const [r0, r1] = t.rockSlope ?? [0.2, 0.36];
+    const c = Math.max(smooth(r0, r1, slope), smooth(0.8, 1.0, high + (noise2(x * 0.03, z * 0.03) - 0.5) * 0.3));
     return [b, c];
   }
 
@@ -174,6 +179,8 @@ export class World {
         uTint: { value: new THREE.Color(t.tint ?? 0xffffff) },
         uGrade: { value: new THREE.Color(t.grade ?? 0xffffff) },
         uTintAmt: { value: t.tint === undefined ? 0 : 0.62 },
+        uRock: { value: new THREE.Color(t.rockTint ?? 0xffffff) },
+        uRockAmt: { value: t.rockTint === undefined ? 0 : 1 },
       });
       if (t.cliffs) sh.fragmentShader = '#define TRI\n' + sh.fragmentShader;
       sh.vertexShader = sh.vertexShader
@@ -184,7 +191,7 @@ export class World {
           '#include <common>',
           /* glsl */ `#include <common>
           uniform sampler2D dA, dB, dC, nA, nB, nC, tMacro;
-          uniform vec3 uTint, uGrade; uniform float uTintAmt;
+          uniform vec3 uTint, uGrade, uRock; uniform float uTintAmt, uRockAmt;
           varying vec2 vMix; varying vec3 vTPos; varying vec3 vTNor;
           vec3 tCol; vec3 tNor; vec3 tCW = vec3(0.0);
           void terrainSample() {
@@ -211,6 +218,7 @@ export class World {
               cn = vec3(0.5, 0.5, 1.0);
             #endif
             a = mix(a, uTint * (0.35 + dot(a, vec3(0.3333)) * 2.6), uTintAmt);
+            c = mix(c, uRock * dot(c, vec3(0.3333)) * 2.2, uRockAmt);
             float la = dot(a, vec3(0.6));
             float wb = smoothstep(0.38, 0.62, vMix.x + (la - 0.25) * 0.5);
             float wc = smoothstep(0.38, 0.62, vMix.y + (dot(c, vec3(0.5)) - 0.25) * 0.5);

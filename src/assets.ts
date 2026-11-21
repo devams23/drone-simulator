@@ -5,7 +5,7 @@ import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 export const TEX_IDS = [
   'leafy_grass', 'forest_ground_04', 'rocky_terrain_02', 'brown_mud_leaves_01', 'rock_face', 'sand_01', 'gravelly_sand',
   'red_sandstone_wall', 'sandstone_cracks', 'white_rough_plaster', 'clay_roof_tiles_02', 'brick_wall_10', 'concrete_wall_004',
-  'corrugated_iron', 'concrete_floor_02', 'pine_bark', 'aerial_grass_rock', 'mossy_rock', 'river_small_rocks',
+  'corrugated_iron', 'concrete_floor_02', 'pine_bark', 'aerial_grass_rock', 'mossy_rock', 'river_small_rocks', 'snow_02', 'asphalt_02',
 ] as const;
 export type TexId = (typeof TEX_IDS)[number];
 
