@@ -30,6 +30,8 @@ const SHOTS: Record<Shot, ShotDef> = {
   brief: { az: -1.25, el: 0.09, dist: 2.6, min: 1.8, shift: 0.24, drift: 0.05, lift: 0 },
 };
 /** Where the opening dolly starts: low and far back in the dark. */
+/** Dev: ?zoom=0.5 brings the studio camera closer for inspecting models. */
+const ZOOM = Number(new URLSearchParams(location.search).get('zoom') ?? 1) || 1;
 const OPENING: ShotDef = { az: 1.1, el: 0.03, dist: 6.5, min: 6.5, shift: 0, drift: 0, lift: 0.1 };
 
 const PAD_TOP = 0.1;
@@ -168,7 +170,9 @@ export class Garage {
     });
     this.scene.add(m.group);
     const size = new THREE.Box3().setFromObject(m.group).getSize(new THREE.Vector3());
-    this.radius = Math.max(size.x, size.z) * 0.5;
+    // Frame on a blend of this drone's size and a fixed reference, so a big
+    // airframe fills more of the bay than a small one.
+    this.radius = (Math.max(size.x, size.z) * 0.5 + 0.9) * 0.5;
     this.height = size.y;
   }
 
@@ -212,7 +216,7 @@ export class Garage {
     const want = this.want;
     for (const key of Object.keys(s) as (keyof ShotDef)[]) s[key] += (want[key] - s[key]) * k;
     const narrow = w < 820;
-    const dist = Math.max(s.min, s.dist * this.radius) * (narrow ? 1.35 : 1);
+    const dist = Math.max(s.min, s.dist * this.radius) * (narrow ? 1.35 : 1) * ZOOM;
     const az = s.az + Math.sin(this.t * 0.11) * s.drift;
     const el = s.el + Math.sin(this.t * 0.07) * s.drift * 0.3;
     const ty = PAD_TOP + this.height * 0.4;
