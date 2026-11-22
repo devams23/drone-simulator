@@ -8,6 +8,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { noise2 } from '../assets';
 import type { Controls } from '../input';
 import { World, boxGeo, canvasTex, rng } from '../world';
+import { bus, fleet, sedan } from '../models/car';
 import { Mission, type Objective, type Payload } from './base';
 
 // ------------------------------------------------------------------ the shape
@@ -24,6 +25,8 @@ const MAIDAN = { x0: 40, x1: 150, z0: 10, z1: 118 };
 /** The bridge leaves the hill's west shore and runs out to sea. */
 export const BRIDGE = { a: new THREE.Vector2(-352, -262), b: new THREE.Vector2(-600, -660), y: 20 };
 const VILLAGE = { x: 430, z: 120 };
+/** The country road's line: south of the village, winding east into the hills. */
+const countryZ = (x: number) => 58 + 7 * Math.sin((x - 320) / 55);
 
 /** Hand-placed towers the courses use: [x, z, width, depth, height]. */
 export const TOWERS: [number, number, number, number, number][] = [
@@ -66,35 +69,60 @@ export function cityHeight(x: number, z: number) {
 
 type Facade = 'glass' | 'flats' | 'old';
 
-/** One tile of a building face, 16 m square: floors 3.2 m, bays 4 m. */
+/** Metres covered by one facade tile: 10 floors of 3.2 m, 8 bays of 4 m. */
+const TILE = 32;
+
+/**
+ * One tile of a building face, plus its night glow: which windows have the
+ * lights on. Offices light whole floors in cool white; homes are a scatter
+ * of tube-light white and warm lamps.
+ */
 function facadeTex(kind: Facade, seed: number) {
   const r = rng(seed);
-  const N = 512;
-  const px = N / 16; // pixels per metre
-  return canvasTex(N, N, (g) => {
+  const N = 1024;
+  const px = N / TILE; // pixels per metre
+  const glowCv = document.createElement('canvas');
+  glowCv.width = glowCv.height = N;
+  const gl = glowCv.getContext('2d')!;
+  gl.fillStyle = '#000';
+  gl.fillRect(0, 0, N, N);
+  const homeLight = () => {
+    const v = r();
+    return v < 0.5 ? null : v < 0.72 ? '232,238,255' : v < 0.94 ? '255,196,120' : '150,190,255';
+  };
+  const map = canvasTex(N, N, (g) => {
     if (kind === 'glass') {
       const grd = g.createLinearGradient(0, 0, 0, N);
-      grd.addColorStop(0, '#5f8796');
-      grd.addColorStop(1, '#3c5f6e');
+      grd.addColorStop(0, '#22343e');
+      grd.addColorStop(1, '#16252e');
       g.fillStyle = grd;
       g.fillRect(0, 0, N, N);
-      for (let f = 0; f < 5; f++) {
-        for (let b = 0; b < 8; b++) {
-          const v = r();
-          g.fillStyle = `rgba(${v < 0.15 ? '220,235,240' : '20,40,50'},${0.08 + r() * 0.22})`;
-          g.fillRect(b * 2 * px, f * 3.2 * px, 2 * px, 3.2 * px);
+      for (let f = 0; f < 10; f++) {
+        const office = r() < 0.5;
+        const warm = r() < 0.25;
+        for (let b = 0; b < 16; b++) {
+          const x = b * 2 * px, y = f * 3.2 * px;
+          g.fillStyle = `rgba(${r() < 0.15 ? '120,150,160' : '10,20,26'},${0.15 + r() * 0.3})`;
+          g.fillRect(x, y, 2 * px, 3.2 * px);
+          if (office && r() < 0.7) {
+            const a = 0.35 + r() * 0.4;
+            gl.fillStyle = `rgba(${warm ? '255,226,180' : '226,236,255'},${a})`;
+            gl.fillRect(x + 3, y + 0.35 * px, 2 * px - 6, 2.5 * px);
+          }
         }
       }
-      g.fillStyle = '#c6d2d6';
-      for (let f = 0; f <= 5; f++) g.fillRect(0, f * 3.2 * px - 3, N, 6);
-      for (let b = 0; b <= 8; b++) g.fillRect(b * 2 * px - 1.5, 0, 3, N);
+      g.fillStyle = '#8d9aa0';
+      for (let f = 0; f <= 10; f++) g.fillRect(0, f * 3.2 * px - 3, N, 6);
+      for (let b = 0; b <= 16; b++) g.fillRect(b * 2 * px - 1.5, 0, 3, N);
+      gl.fillStyle = '#000';
+      for (let f = 0; f <= 10; f++) gl.fillRect(0, f * 3.2 * px - 4, N, 8);
       return;
     }
     const wall = kind === 'flats' ? '#e8e2d6' : '#d9c3a8';
     g.fillStyle = wall;
     g.fillRect(0, 0, N, N);
     // Weathering: monsoon streaks under the windows.
-    for (let i = 0; i < 70; i++) {
+    for (let i = 0; i < 220; i++) {
       const x = r() * N, y = r() * N;
       const grd = g.createLinearGradient(x, y, x, y + 40 + r() * 120);
       grd.addColorStop(0, `rgba(70,62,50,${kind === 'old' ? 0.22 : 0.1})`);
@@ -102,16 +130,27 @@ function facadeTex(kind: Facade, seed: number) {
       g.fillStyle = grd;
       g.fillRect(x, y, 3 + r() * 8, 160);
     }
-    for (let f = 0; f < 5; f++) {
+    for (let f = 0; f < 10; f++) {
       const y0 = f * 3.2 * px;
       // Slab edge band.
       g.fillStyle = kind === 'flats' ? '#f6f3ee' : '#c8b090';
       g.fillRect(0, y0 + 2.9 * px, N, 0.3 * px);
-      for (let b = 0; b < 4; b++) {
+      for (let b = 0; b < 8; b++) {
         const x0 = b * 4 * px;
         const wx = x0 + 0.6 * px, wy = y0 + 0.8 * px, ww = 2.8 * px, wh = 1.7 * px;
         g.fillStyle = r() < 0.12 ? '#6b7d86' : '#26323a';
         g.fillRect(wx, wy, ww, wh);
+        const lit = homeLight();
+        if (lit) {
+          // A lit room: brighter near the middle, a curtain edge on one side.
+          const a = 0.55 + r() * 0.45;
+          gl.fillStyle = `rgba(${lit},${a})`;
+          gl.fillRect(wx + 3, wy + 3, ww - 6, wh - 6);
+          if (r() < 0.5) {
+            gl.fillStyle = 'rgba(0,0,0,0.55)';
+            gl.fillRect(r() < 0.5 ? wx + 3 : wx + ww * 0.6, wy + 3, ww * 0.4 - 3, wh - 6);
+          }
+        }
         g.fillStyle = 'rgba(255,255,255,0.12)';
         g.fillRect(wx, wy, ww, wh * 0.35);
         // Window grille and frame.
@@ -132,8 +171,61 @@ function facadeTex(kind: Facade, seed: number) {
           g.fillStyle = '#d4d6d2';
           g.fillRect(wx + ww - 0.9 * px, wy + wh + 0.05 * px, 0.8 * px, 0.5 * px);
         }
+        gl.fillStyle = '#000';
+        gl.fillRect(wx + ww / 2 - 2, wy, 4, wh);
       }
     }
+  });
+  const glow = new THREE.CanvasTexture(glowCv);
+  glow.colorSpace = THREE.SRGBColorSpace;
+  glow.wrapS = glow.wrapT = THREE.RepeatWrapping;
+  glow.anisotropy = 4;
+  return { map, glow };
+}
+
+/** A facade material that lights up its windows at night. */
+function facadeMat(kind: Facade, seed: number, glow = 1.7) {
+  const t = facadeTex(kind, seed);
+  return new THREE.MeshStandardMaterial({
+    map: t.map,
+    emissive: 0xffffff,
+    emissiveMap: t.glow,
+    emissiveIntensity: glow,
+    roughness: kind === 'glass' ? 0.12 : kind === 'flats' ? 0.82 : 0.88,
+    metalness: kind === 'glass' ? 0.65 : 0,
+  });
+}
+
+/** Soft round light falling on the ground, for lamp pools and headlight beams. */
+function poolTex() {
+  return canvasTex(128, 128, (g) => {
+    const rg = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    // Gaussian-like falloff: no visible rim at the edge of the pool.
+    for (let k = 0; k <= 10; k++) {
+      const t = k / 10;
+      rg.addColorStop(t, `rgba(255,255,255,${(Math.exp(-t * t * 5) - Math.exp(-5)) / (1 - Math.exp(-5))})`);
+    }
+    g.fillStyle = rg;
+    g.fillRect(0, 0, 128, 128);
+  });
+}
+
+/** Fades from full at u = 0 to nothing at u = 1, softened across v. */
+function fadeTex() {
+  return canvasTex(128, 32, (g) => {
+    const lg = g.createLinearGradient(0, 0, 128, 0);
+    lg.addColorStop(0, 'rgba(255,255,255,1)');
+    lg.addColorStop(0.25, 'rgba(255,255,255,0.5)');
+    lg.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = lg;
+    g.fillRect(0, 0, 128, 32);
+    g.globalCompositeOperation = 'destination-in';
+    const vg = g.createLinearGradient(0, 0, 0, 32);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(0.5, 'rgba(0,0,0,1)');
+    vg.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = vg;
+    g.fillRect(0, 0, 128, 32);
   });
 }
 
@@ -162,19 +254,163 @@ function frondTex() {
   });
 }
 
+// ------------------------------------------------------------------ night sky
+
+/** Direction to the moon: low in the north-east, over the village. */
+export const MOON = new THREE.Vector3(Math.cos(0.5) * Math.cos(-0.46), Math.sin(0.5), Math.cos(0.5) * Math.sin(-0.46)).normalize();
+
+/**
+ * Painted equirectangular night: deep navy overhead, the city's sodium haze
+ * low over the sea to the west, a dusting of stars and the Milky Way, and a
+ * crescent moon. Used for both the background and the reflections.
+ */
+function nightSky() {
+  const W = 4096, H = 2048;
+  const r = rng(909);
+  const t = canvasTex(W, H, (g) => {
+    // Base gradient, zenith to horizon, then the ground below.
+    const grd = g.createLinearGradient(0, 0, 0, H);
+    grd.addColorStop(0, '#02040b');
+    grd.addColorStop(0.2, '#050b1d');
+    grd.addColorStop(0.4, '#0b1733');
+    grd.addColorStop(0.49, '#16264a');
+    grd.addColorStop(0.5, '#141d30');
+    grd.addColorStop(1, '#05070c');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, W, H);
+    // u -> compass: u = atan2(z, x) / 2pi + 0.5, so west (-x) sits at u = 0 and 1.
+    const glowAt = (u: number) => {
+      const dw = Math.min(u, 1 - u); // distance to west
+      return 0.28 + 0.95 * Math.exp(-((dw / 0.13) ** 2)) + 0.25 * Math.exp(-(((u - 0.75) / 0.08) ** 2));
+    };
+    // City glow: warm haze hugging the horizon, strongest over the sea.
+    for (let x = 0; x < W; x += 2) {
+      const k = glowAt(x / W);
+      const top = H * (0.5 - 0.17 * Math.min(1, k));
+      const cg = g.createLinearGradient(0, top, 0, H * 0.5);
+      cg.addColorStop(0, 'rgba(120,50,70,0)');
+      cg.addColorStop(0.55, `rgba(170,70,52,${0.35 * Math.min(1, k)})`);
+      cg.addColorStop(1, `rgba(236,118,52,${Math.min(0.92, 0.75 * k)})`);
+      g.fillStyle = cg;
+      g.fillRect(x, top, 2, H * 0.5 - top + 1);
+    }
+    // Milky Way: a soft band of haze along a tilted great circle, with denser stars.
+    const band = (u: number) => H * (0.27 - 0.17 * Math.sin(u * Math.PI * 2 + 1.1));
+    g.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 900; i++) {
+      const u = r();
+      const y = band(u) + (r() - 0.5) * H * 0.07;
+      if (y > H * 0.46) continue;
+      const rad = 20 + r() * 70;
+      const rg = g.createRadialGradient(u * W, y, 0, u * W, y, rad);
+      rg.addColorStop(0, `rgba(150,165,210,${0.018 + r() * 0.025})`);
+      rg.addColorStop(1, 'rgba(150,165,210,0)');
+      g.fillStyle = rg;
+      g.fillRect(u * W - rad, y - rad, rad * 2, rad * 2);
+    }
+    // Stars: thinner toward the horizon and inside the glow.
+    const star = (x: number, y: number, s: number, a: number, tint: string) => {
+      g.fillStyle = `rgba(${tint},${a})`;
+      g.beginPath();
+      g.arc(x, y, s, 0, Math.PI * 2);
+      g.fill();
+    };
+    for (let i = 0; i < 16000; i++) {
+      const u = r();
+      const inBand = i < 6000;
+      const y = inBand ? band(u) + (r() - 0.5) * (r() * H * 0.12) : Math.acos(r()) / (Math.PI / 2) * H * 0.5;
+      if (y < 0 || y > H * 0.495) continue;
+      const lowFade = Math.min(1, (H * 0.5 - y) / (H * 0.12));
+      const fade = lowFade * (1 - 0.8 * Math.min(1, glowAt(u) - 0.28) * Math.max(0, 1 - (H * 0.5 - y) / (H * 0.15)));
+      const big = r();
+      const s = big > 0.985 ? 1.6 + r() * 0.9 : big > 0.9 ? 1.05 : 0.55 + r() * 0.35;
+      const tint = r() < 0.12 ? '255,222,190' : r() < 0.2 ? '200,215,255' : '235,240,255';
+      star(u * W, y, s, (0.35 + r() * 0.65) * fade, tint);
+      if (big > 0.993) {
+        const rg = g.createRadialGradient(u * W, y, 0, u * W, y, 9);
+        rg.addColorStop(0, `rgba(${tint},${0.35 * fade})`);
+        rg.addColorStop(1, `rgba(${tint},0)`);
+        g.fillStyle = rg;
+        g.fillRect(u * W - 9, y - 9, 18, 18);
+      }
+    }
+    g.globalCompositeOperation = 'source-over';
+    // Crescent moon with a soft halo; equirect stretches it sideways by 1/cos(elevation).
+    const el = Math.asin(MOON.y);
+    const mu = Math.atan2(MOON.z, MOON.x) / (Math.PI * 2) + 0.5;
+    const mx = mu * W, my = H * (0.5 - el / Math.PI);
+    const stretch = 1 / Math.cos(el);
+    const R = 26;
+    const halo = g.createRadialGradient(mx, my, R * 0.8, mx, my, R * 9);
+    halo.addColorStop(0, 'rgba(200,210,235,0.22)');
+    halo.addColorStop(0.3, 'rgba(150,170,220,0.07)');
+    halo.addColorStop(1, 'rgba(150,170,220,0)');
+    g.save();
+    g.translate(mx, my);
+    g.scale(stretch, 1);
+    g.translate(-mx, -my);
+    g.fillStyle = halo;
+    g.fillRect(mx - R * 9, my - R * 9, R * 18, R * 18);
+    const moon = document.createElement('canvas');
+    moon.width = moon.height = R * 2 + 4;
+    const mg = moon.getContext('2d')!;
+    const mgr = mg.createRadialGradient(R + 2 - R * 0.3, R + 2 + R * 0.2, 0, R + 2, R + 2, R);
+    mgr.addColorStop(0, '#fffaf0');
+    mgr.addColorStop(1, '#efe3c4');
+    mg.fillStyle = mgr;
+    mg.beginPath();
+    mg.arc(R + 2, R + 2, R, 0, Math.PI * 2);
+    mg.fill();
+    mg.globalCompositeOperation = 'destination-out';
+    mg.beginPath();
+    mg.arc(R + 2 + R * 0.55, R + 2 - R * 0.42, R * 0.98, 0, Math.PI * 2);
+    mg.fill();
+    g.drawImage(moon, mx - R - 2, my - R - 2);
+    g.restore();
+  });
+  t.mapping = THREE.EquirectangularReflectionMapping;
+  t.wrapT = THREE.ClampToEdgeWrapping;
+  t.anisotropy = 1;
+  return t;
+}
+
 // ------------------------------------------------------------------ the map
 
+interface Road {
+  pts: THREE.Vector3[];
+  len: number[];
+  tan: THREE.Vector3[];
+  total: number;
+  /** Lane offsets from the centreline; the first half run with the path, the rest against it. */
+  lanes: number[];
+}
+
+function makeRoad(pts: THREE.Vector3[], lanes: number[]): Road {
+  const len = [0];
+  for (let i = 1; i < pts.length; i++) len.push(len[i - 1] + pts[i].distanceTo(pts[i - 1]));
+  const tan = pts.map((_, i, a) => a[Math.min(a.length - 1, i + 1)].clone().sub(a[Math.max(0, i - 1)]).normalize());
+  return { pts, len, tan, total: len[len.length - 1], lanes };
+}
+
 interface Car {
+  rd: Road;
   lane: number;
   s: number;
   v: number;
+  /** 0 sedan, 1 bus; idx is the instance slot in that kind's fleet. */
+  kind: number;
+  idx: number;
 }
 
 export class CityMission extends Mission {
   readonly id = 'city';
-  private road: { pts: THREE.Vector3[]; len: number[]; total: number; tan: THREE.Vector3[] } = { pts: [], len: [], total: 0, tan: [] };
+  private road!: Road;
+  private avenues: Road[] = [];
   private cars: Car[] = [];
-  private carMesh?: THREE.InstancedMesh;
+  private fleets: THREE.InstancedMesh[][] = [];
+  private beacon?: THREE.MeshBasicMaterial;
+  private flies?: { pts: THREE.Points; base: number[] };
+  private t = 0;
 
   constructor(...a: ConstructorParameters<typeof Mission>) {
     super(...a);
@@ -188,8 +424,23 @@ export class CityMission extends Mission {
         flats: [],
       },
     ));
+    // Night: the painted sky replaces the photo, the sun becomes cool moonlight.
+    {
+      const sky = nightSky();
+      const s = this.scene;
+      s.background = s.environment = sky;
+      s.backgroundRotation.set(0, 0, 0);
+      s.environmentRotation.set(0, 0, 0);
+      s.environmentIntensity = 2.4;
+      s.fog = new THREE.Fog(0x161a2c, 260, 2600);
+      w.sun.color.setHex(0x9fb6e8);
+      w.sun.intensity = 0.7;
+      w.sunDir.copy(MOON);
+      w.follow(new THREE.Vector3());
+      this.look = { exposure: 1.05, bloom: 0.85, threshold: 0.55, radius: 0.65 };
+    }
     this.waterY = 0;
-    w.water(this.waterY, 0x2c5865);
+    w.water(this.waterY, 0x0c1c28);
     this.pad = w.pad(PAD.x, PAD.z);
     this.spawn.copy(this.pad).y += 0.7;
     this.spawnYaw = Math.atan2(-(TOWERS[0][0] - PAD.x), -(TOWERS[0][1] - PAD.z));
@@ -203,12 +454,11 @@ export class CityMission extends Mission {
     // ---- the sea road: centreline 18 m inland of the shore
     const roadX = (z: number) => coast(z) + 18;
     const Z0 = -228, Z1 = 330;
-    for (let z = Z0; z <= Z1; z += 3) this.road.pts.push(new THREE.Vector3(roadX(z), GROUND + 0.06, z));
-    this.road.len.push(0);
-    for (let i = 1; i < this.road.pts.length; i++) this.road.len.push(this.road.len[i - 1] + this.road.pts[i].distanceTo(this.road.pts[i - 1]));
-    this.road.total = this.road.len[this.road.len.length - 1];
-    this.road.tan = this.road.pts.map((_, i, a) => a[Math.min(a.length - 1, i + 1)].clone().sub(a[Math.max(0, i - 1)]).normalize());
-    this.ribbon(this.road.pts, 17, GROUND + 0.06, this.roadMat());
+    const seaPts: THREE.Vector3[] = [];
+    for (let z = Z0; z <= Z1; z += 3) seaPts.push(new THREE.Vector3(roadX(z), GROUND + 0.06, z));
+    this.road = makeRoad(seaPts, [-6.2, -2.2, 2.2, 6.2]);
+    const roadMat = this.roadMat();
+    this.ribbon(this.road.pts, 17, GROUND + 0.06, roadMat);
     // Promenade: a pale walkway on the sea side, with a low sea wall.
     const walkPts = this.road.pts.map((p) => new THREE.Vector3(coast(p.z) + 4.2, GROUND + 0.1, p.z));
     this.ribbon(walkPts, 7, GROUND + 0.1, w.pbr('concrete_floor_02', 0xe4ddd0, 0.9));
@@ -245,10 +495,11 @@ export class CityMission extends Mission {
       mesh.castShadow = mesh.receiveShadow = true;
       this.scene.add(mesh);
     }
-    // Streetlights on the sea side: the necklace.
+    // Streetlights on the sea side: the necklace of sodium lamps.
+    const poles: THREE.BufferGeometry[] = [];
+    const lamps: THREE.BufferGeometry[] = [];
+    const pools: { x: number; z: number; s: number }[] = [];
     {
-      const poles: THREE.BufferGeometry[] = [];
-      const lamps: THREE.BufferGeometry[] = [];
       for (let s = 8; s < this.road.total; s += 22) {
         const { p, t } = this.along(s);
         const nx = -t.z, nz = t.x; // left normal (toward the sea for this road direction)
@@ -260,29 +511,94 @@ export class CityMission extends Mission {
         arm.translate(x - nx * side * 1.1, GROUND + 8.9, z - nz * side * 1.1);
         poles.push(arm);
         lamps.push(new THREE.SphereGeometry(0.32, 10, 6).scale(1, 0.55, 1).translate(x - nx * side * 2.2, GROUND + 8.8, z - nz * side * 2.2));
+        pools.push({ x: x - nx * side * 3.4, z: z - nz * side * 3.4, s: 21 });
       }
-      this.scene.add(new THREE.Mesh(mergeGeometries(poles)!, w.mat(0x4c5258, { metalness: 0.6, roughness: 0.4 })));
-      const lm = new THREE.Mesh(mergeGeometries(lamps)!, new THREE.MeshStandardMaterial({ color: 0xffe2a8, emissive: 0xffc070, emissiveIntensity: 2.2 }));
+    }
+    // Two inland avenues with their own traffic, on streets the courses leave alone,
+    // and a country road out past the village into the hills.
+    {
+      const a1: THREE.Vector3[] = [], a2: THREE.Vector3[] = [], a3: THREE.Vector3[] = [];
+      for (let z = -230; z <= 336; z += 4) a1.push(new THREE.Vector3(320, GROUND + 0.07, z));
+      for (let x = coast(-148) + 74; x <= 320; x += 4) a2.push(new THREE.Vector3(x, GROUND + 0.07, -148));
+      for (let x = 325; x <= 720; x += 3) a3.push(new THREE.Vector3(x, cityHeight(x, countryZ(x)) + 0.22, countryZ(x)));
+      let lane: THREE.Material | undefined;
+      for (const [pts, gap, both] of [[a1, 24, true], [a2, 24, true], [a3, 42, false]] as const) {
+        const rd = makeRoad(pts, [-2.2, 2.2]);
+        this.avenues.push(rd);
+        this.ribbon(pts, pts === a3 ? 8 : 9, pts === a3 ? null : GROUND + 0.07, (lane ??= this.laneMat()));
+        let k = 0;
+        for (let s = 10; s < rd.total; s += gap) {
+          const { p, t } = this.along(s, rd);
+          const side = both && k++ % 2 ? 1 : -1;
+          const nx = -t.z * side, nz = t.x * side;
+          const x = p.x + nx * 5.2, z = p.z + nz * 5.2;
+          const gy = cityHeight(x, z);
+          poles.push(new THREE.CylinderGeometry(0.07, 0.1, 7.4, 6).translate(x, gy + 3.5, z));
+          const arm = new THREE.CylinderGeometry(0.05, 0.05, 1.8, 5).rotateZ(Math.PI / 2);
+          arm.rotateY(Math.atan2(-nz, nx) + Math.PI / 2);
+          arm.translate(x - nx * 0.8, gy + 6.95, z - nz * 0.8);
+          poles.push(arm);
+          lamps.push(new THREE.SphereGeometry(0.26, 10, 6).scale(1, 0.55, 1).translate(x - nx * 1.6, gy + 6.85, z - nz * 1.6));
+          pools.push({ x: x - nx * 2.4, z: z - nz * 2.4, s: 15 });
+        }
+      }
+    }
+    {
+      this.scene.add(new THREE.Mesh(mergeGeometries(poles.map((g) => (g.index ? g.toNonIndexed() : g)))!, w.mat(0x4c5258, { metalness: 0.6, roughness: 0.4 })));
+      const lm = new THREE.Mesh(mergeGeometries(lamps)!, new THREE.MeshStandardMaterial({ color: 0xffd9a0, emissive: 0xffa850, emissiveIntensity: 6 }));
       lm.userData.noCast = true;
       this.scene.add(lm);
+      this.pools(pools, 0xff9a48, 0.38);
     }
 
-    // ---- traffic on the sea road: hatchbacks, buses, black-and-yellow taxis
+    // ---- traffic: modelled sedans, black-and-yellow taxis and red city buses.
+    // Light traffic, as at night; every vehicle in a lane keeps the lane's speed,
+    // spaced evenly, so nothing ever drives through anything else.
     {
-      const body = boxGeo(4.1, 1.0, 1.75, 2).translate(0, 0.75, 0);
-      const cab = boxGeo(2.3, 0.75, 1.6, 2).translate(-0.2, 1.6, 0);
-      const g = mergeGeometries([body, cab])!;
-      const mesh = new THREE.InstancedMesh(g, w.mat(0xffffff, { roughness: 0.35, metalness: 0.35 }), 70);
-      const cols = [0xf1c21b, 0xf1c21b, 0xf1c21b, 0xe9e9e6, 0x2a2e33, 0xb3302a, 0x7d8a96, 0x2f5f9a, 0xd8d2c2];
-      const c = new THREE.Color();
-      for (let i = 0; i < 70; i++) {
-        const lane = i % 4;
-        this.cars.push({ lane, s: r() * this.road.total, v: (lane < 2 ? 1 : -1) * (11 + r() * 6) });
-        mesh.setColorAt(i, c.setHex(cols[Math.floor(r() * cols.length)]));
+      const kinds = [sedan(), bus()];
+      const plan: { rd: Road; lane: number; kind: number }[] = [];
+      const [ave1, ave2, country] = this.avenues;
+      const roads: [Road, number, number][] = [[this.road, 9, 1], [ave1, 5, 0], [ave2, 5, 0], [country, 2, 1]];
+      for (const [rd, perLane, buses] of roads) {
+        rd.lanes.forEach((_, lane) => {
+          const outer = lane === 0 || lane === rd.lanes.length - 1;
+          for (let k = 0; k < perLane; k++) plan.push({ rd, lane, kind: outer && k < buses ? 1 : 0 });
+        });
       }
-      mesh.castShadow = true;
-      this.scene.add(mesh);
-      this.carMesh = mesh;
+      const counts = [0, 0];
+      for (const p of plan) counts[p.kind]++;
+      const fade = fadeTex();
+      this.fleets = kinds.map((k, i) => fleet(k, counts[i], fade));
+      for (const f of this.fleets) for (const m of f) this.scene.add(m);
+      const paints = [0xe8e8e4, 0xc9ccd0, 0x8a9096, 0x2b2e33, 0x16181b, 0x6e1a1c, 0x1f3550, 0x9a9182, 0xf2f0ea];
+      const c = new THREE.Color();
+      const used = [0, 0];
+      const laneSpeed = new Map<string, number>();
+      const laneSlot = new Map<string, number>();
+      for (const p of plan) {
+        const key = `${p.rd.total}:${p.lane}`;
+        const n = plan.filter((q) => q.rd === p.rd && q.lane === p.lane).length;
+        if (!laneSpeed.has(key)) laneSpeed.set(key, (p.rd === this.road ? 12.5 : 8.5) + r() * 2.5);
+        const slot = laneSlot.get(key) ?? 0;
+        laneSlot.set(key, slot + 1);
+        const v = laneSpeed.get(key)! * (p.lane < p.rd.lanes.length / 2 ? 1 : -1);
+        const s = ((slot + 0.35 * r()) / n) * p.rd.total;
+        const idx = used[p.kind]++;
+        this.cars.push({ rd: p.rd, lane: p.lane, s, v, kind: p.kind, idx });
+        const [paint, top] = this.fleets[p.kind];
+        if (p.kind === 1) {
+          c.setHex(0xb3221c); // city-bus red
+          paint.setColorAt(idx, c);
+          top.setColorAt(idx, c.setHex(0xd8d4cc));
+        } else if (r() < 0.3) {
+          paint.setColorAt(idx, c.setHex(0x141518)); // taxi: black body, yellow top
+          top.setColorAt(idx, c.setHex(0xf0c419));
+        } else {
+          c.setHex(paints[Math.floor(r() * paints.length)]);
+          paint.setColorAt(idx, c);
+          top.setColorAt(idx, c);
+        }
+      }
       this.moveCars(0);
     }
 
@@ -420,6 +736,7 @@ export class CityMission extends Mission {
       const x = 360 + r() * 400;
       const z = -560 + r() * 1120;
       if (Math.hypot(x - VILLAGE.x, z - VILLAGE.z) < 110 || (x < 500 && noise2(x * 0.02, z * 0.02) < 0.55)) continue;
+      if (Math.abs(z - countryZ(x)) < 9) continue;
       trees.push({ x, z, s: 0.8 + r() * 0.8 });
     }
     // Shade trees in the maidan corners.
@@ -432,9 +749,9 @@ export class CityMission extends Mission {
 
   // -------------------------------------------------------------- road helpers
 
-  /** Point and tangent at distance s along the sea road. */
-  private along(s: number) {
-    const { pts, len, tan, total } = this.road;
+  /** Point and tangent at distance s along a road (the sea road by default). */
+  private along(s: number, rd = this.road) {
+    const { pts, len, tan, total } = rd;
     s = ((s % total) + total) % total;
     let lo = 0, hi = len.length - 1;
     while (hi - lo > 1) {
@@ -446,7 +763,8 @@ export class CityMission extends Mission {
     return { p: pts[lo].clone().lerp(pts[hi], k), t: tan[lo].clone().lerp(tan[hi], k).normalize() };
   }
 
-  private ribbon(path: THREE.Vector3[], width: number, y: number, mat: THREE.Material) {
+  /** Lays a strip along a path, at height y, or following the path's own heights when y is null. */
+  private ribbon(path: THREE.Vector3[], width: number, y: number | null, mat: THREE.Material) {
     const pos: number[] = [], uv: number[] = [], idx: number[] = [];
     let run = 0;
     path.forEach((p, i) => {
@@ -454,7 +772,8 @@ export class CityMission extends Mission {
       const l = Math.hypot(b.x - a.x, b.z - a.z) || 1;
       const nx = -(b.z - a.z) / l, nz = (b.x - a.x) / l;
       if (i > 0) run += Math.hypot(p.x - path[i - 1].x, p.z - path[i - 1].z);
-      pos.push(p.x + (nx * width) / 2, y, p.z + (nz * width) / 2, p.x - (nx * width) / 2, y, p.z - (nz * width) / 2);
+      const py = y ?? p.y;
+      pos.push(p.x + (nx * width) / 2, py, p.z + (nz * width) / 2, p.x - (nx * width) / 2, py, p.z - (nz * width) / 2);
       uv.push(0, run / width, 1, run / width);
       if (i > 0) {
         const k = i * 2;
@@ -478,6 +797,28 @@ export class CityMission extends Mission {
     return m;
   }
 
+  /** Worn two-lane country tarmac: a broken centre line, no kerb lines. */
+  private laneMat() {
+    const asphalt = this.world.pbr('asphalt_02', 0x7a7672, 0.95);
+    const marks = canvasTex(256, 256, (g) => {
+      g.clearRect(0, 0, 256, 256);
+      g.fillStyle = 'rgba(235,232,220,0.75)';
+      for (let y = 0; y < 256; y += 128) g.fillRect(125, y, 5, 60);
+    });
+    const m = asphalt.clone();
+    m.onBeforeCompile = (sh) => {
+      sh.uniforms.tMarks = { value: marks };
+      sh.fragmentShader = sh.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform sampler2D tMarks;')
+        .replace('#include <map_fragment>', '#include <map_fragment>\n{ vec4 mk = texture2D(tMarks, vMapUv * vec2(1.0 / 3.0, 0.5 / 3.0)); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9), mk.a); }');
+    };
+    const t = m.map!.clone();
+    t.repeat.set(3, 3);
+    t.needsUpdate = true;
+    m.map = t;
+    return m;
+  }
+
   /** Asphalt with lane markings, mapped one texture length per road width. */
   private roadMat() {
     const asphalt = this.world.pbr('asphalt_02', 0x8c8a88, 0.9);
@@ -494,7 +835,7 @@ export class CityMission extends Mission {
       sh.uniforms.tMarks = { value: marks };
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', '#include <common>\nuniform sampler2D tMarks;')
-        .replace('#include <map_fragment>', '#include <map_fragment>\n{ vec4 mk = texture2D(tMarks, vMapUv * vec2(1.0, 0.5)); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92), mk.a); }');
+        .replace('#include <map_fragment>', '#include <map_fragment>\n{ vec4 mk = texture2D(tMarks, vMapUv * vec2(1.0 / 3.0, 0.5 / 3.0)); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92), mk.a); }');
     };
     const t = m.map!.clone();
     t.repeat.set(3, 3);
@@ -504,20 +845,34 @@ export class CityMission extends Mission {
   }
 
   private moveCars(dt: number) {
-    const mesh = this.carMesh!;
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1);
-    const off = [-6.2, -2.2, 2.2, 6.2];
-    this.cars.forEach((c, i) => {
+    this.cars.forEach((c) => {
       c.s += c.v * dt;
-      const { p, t } = this.along(c.s);
+      const { p, t } = this.along(c.s, c.rd);
       const nx = -t.z, nz = t.x;
-      p.x += nx * off[c.lane];
-      p.z += nz * off[c.lane];
+      const off = c.rd.lanes[c.lane];
+      p.x += nx * off;
+      p.z += nz * off;
       q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, Math.atan2(-t.z, t.x) + (c.v < 0 ? Math.PI : 0));
       m4.compose(p, q, one);
+      for (const m of this.fleets[c.kind]) m.setMatrixAt(c.idx, m4);
+    });
+    for (const f of this.fleets) for (const m of f) m.instanceMatrix.needsUpdate = true;
+  }
+
+  /** Additive pools of lamplight on the ground. */
+  private pools(list: { x: number; z: number; s: number }[], color: number, strength: number) {
+    const mat = new THREE.MeshBasicMaterial({ map: poolTex(), color, transparent: true, opacity: strength, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+    const mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), mat, list.length);
+    const m4 = new THREE.Matrix4();
+    list.forEach((p, i) => {
+      m4.makeScale(p.s, 1, p.s).setPosition(p.x, cityHeight(p.x, p.z) + 0.15, p.z);
       mesh.setMatrixAt(i, m4);
     });
-    mesh.instanceMatrix.needsUpdate = true;
+    mesh.userData.noCast = true;
+    mesh.frustumCulled = false;
+    this.scene.add(mesh);
+    return mesh;
   }
 
   // -------------------------------------------------------------- buildings
@@ -529,13 +884,25 @@ export class CityMission extends Mission {
     const roofs: THREE.BufferGeometry[] = [];
     const tanks: THREE.BufferGeometry[] = [];
     const sheds: THREE.BufferGeometry[] = [];
+    const beacons: THREE.BufferGeometry[] = [];
     for (const b of list) {
       const kind = b.kind === 'deco' ? 'old' : b.kind;
       const sink = 1.5;
-      by[kind].push(boxGeo(b.w, b.h + sink, b.d, 16).translate(b.x, b.y0 - sink + (b.h + sink) / 2, b.z));
+      // Shift each building's facade by whole bays and floors so no two light up alike.
+      const body = boxGeo(b.w, b.h + sink, b.d, TILE).translate(b.x, b.y0 - sink + (b.h + sink) / 2, b.z);
+      const ou = Math.floor(r() * 8) / 8, ov = Math.floor(r() * 10) / 10;
+      const uv = body.attributes.uv;
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) + ou, uv.getY(i) + ov);
+      by[kind].push(body);
       const top = b.y0 + b.h;
       roofs.push(boxGeo(b.w + 0.4, 0.5, b.d + 0.4, 4).translate(b.x, top + 0.25, b.z));
       w.addBox(b.x, b.y0 - sink, b.z, b.w, b.h + sink + 0.5, b.d);
+      // Red aviation lights on the corners of anything tall.
+      if (b.h > 55) {
+        for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+          beacons.push(new THREE.SphereGeometry(0.28, 8, 6).translate(b.x + sx * (b.w / 2 - 0.4), top + 0.8, b.z + sz * (b.d / 2 - 0.4)));
+        }
+      }
       // Rooftop life: black water tanks, a stair head, AC plant.
       if (b.w > 9) {
         const nt = 1 + Math.floor(r() * 3);
@@ -546,9 +913,9 @@ export class CityMission extends Mission {
       }
     }
     const mats: Record<Facade, THREE.Material> = {
-      glass: new THREE.MeshStandardMaterial({ map: facadeTex('glass', 5), roughness: 0.12, metalness: 0.65 }),
-      flats: new THREE.MeshStandardMaterial({ map: facadeTex('flats', 6), roughness: 0.82, metalness: 0 }),
-      old: new THREE.MeshStandardMaterial({ map: facadeTex('old', 7), roughness: 0.88, metalness: 0 }),
+      glass: facadeMat('glass', 5, 1.15),
+      flats: facadeMat('flats', 6),
+      old: facadeMat('old', 7, 1.5),
     };
     for (const k of Object.keys(by) as Facade[]) {
       if (!by[k].length) continue;
@@ -565,6 +932,12 @@ export class CityMission extends Mission {
     add(roofs, w.pbr('concrete_floor_02', 0xbab4aa, 0.92));
     add(tanks, w.mat(0x1d1f22, { roughness: 0.6 }));
     add(sheds, w.pbr('concrete_wall_004', 0xd6d0c4, 0.9));
+    if (beacons.length) {
+      this.beacon = new THREE.MeshBasicMaterial({ color: 0xff2a1a });
+      const m = new THREE.Mesh(mergeGeometries(beacons)!, this.beacon);
+      m.userData.noCast = true;
+      this.scene.add(m);
+    }
   }
 
   /** Low sea-facing block, rotated to the curve of the bay, in pastel paint. */
@@ -572,8 +945,8 @@ export class CityMission extends Mission {
     const w = this.world;
     const tints = [0xfff1d8, 0xf7e3cf, 0xe9eef0, 0xf6dcc8, 0xefe6c8];
     const m4 = new THREE.Matrix4().makeRotationY(ry).setPosition(x, GROUND - 1 + (h + 1) / 2, z);
-    const body = boxGeo(d, h + 1, wd, 16).applyMatrix4(m4);
-    const mat = (this.decoMat ??= new THREE.MeshStandardMaterial({ map: facadeTex('old', 11), roughness: 0.85 }));
+    const body = boxGeo(d, h + 1, wd, TILE).applyMatrix4(m4);
+    const mat = (this.decoMat ??= facadeMat('old', 11, 1.5));
     const mesh = new THREE.Mesh(body, mat.clone());
     (mesh.material as THREE.MeshStandardMaterial).color.setHex(tints[Math.floor(Math.abs(Math.sin(x * 7.1)) * tints.length)]);
     mesh.castShadow = mesh.receiveShadow = true;
@@ -676,8 +1049,8 @@ export class CityMission extends Mission {
   private village(r: () => number) {
     const w = this.world;
     const { x: VX, z: VZ } = VILLAGE;
-    // Patchwork fields: rice green, mustard, ploughed earth.
-    const fieldCols = [0x7d9a3a, 0x93a548, 0xc2a548, 0x8a6a46, 0x6e8c34];
+    // Paddy: mostly rice green, the odd ploughed or mustard plot.
+    const fieldCols = [0x5d8a2c, 0x6c9832, 0x7aa43a, 0x527e28, 0x6c9832, 0x8a6a46, 0xb4a044];
     const fields: THREE.BufferGeometry[] = [];
     const colors: number[] = [];
     const c = new THREE.Color();
@@ -686,6 +1059,7 @@ export class CityMission extends Mission {
         const fx = VX + i * 26 + (r() - 0.5) * 4, fz = VZ + j * 22 + (r() - 0.5) * 4;
         if (Math.hypot(fx - VX, fz - VZ) < 46) continue;
         if (fx > 495) continue;
+        if (Math.abs(fz - countryZ(fx)) < 16) continue;
         const g = new THREE.PlaneGeometry(23, 19, 6, 6).rotateX(-Math.PI / 2);
         const p = g.attributes.position;
         for (let k = 0; k < p.count; k++) p.setY(k, cityHeight(fx + p.getX(k), fz + p.getZ(k)) + 0.08);
@@ -707,12 +1081,75 @@ export class CityMission extends Mission {
     fm.userData.noCast = true;
     this.scene.add(fm);
 
-    // Houses: whitewashed and pastel, clay tile roofs, around a lane.
-    const walls = [0xf3efe6, 0xe8d8b8, 0xb9d0d6, 0xf0c9a8, 0xd9e4c8];
-    for (let i = 0; i < 16; i++) {
-      const a = (i / 16) * Math.PI * 2 + r() * 0.2;
-      const d = 18 + (i % 3) * 9 + r() * 4;
-      w.house(VX + Math.cos(a) * d, VZ + Math.sin(a) * d, 6 + r() * 3, 5 + r() * 2, 3 + r() * 1.5, walls[i % walls.length], 0xa84a2a, i % 4 === 0);
+    // Houses: blue-washed concrete with flat terraces, a few whitewashed ones
+    // under clay tiles. At night most are lived in: lit rooms, a porch bulb.
+    const walls = [0x6f9fd2, 0xf3efe6, 0x88b4de, 0xe8d8b8, 0x5d8cc4, 0xd9e4c8];
+    const winMat = new THREE.MeshBasicMaterial({ vertexColors: true });
+    winMat.color.setScalar(2.2);
+    const bulbs: THREE.BufferGeometry[] = [];
+    const tanks: THREE.BufferGeometry[] = [];
+    const porch: { x: number; z: number; s: number }[] = [];
+    for (let i = 0; i < 20; i++) {
+      const a = (i / 20) * Math.PI * 2 + r() * 0.2;
+      const d = 19 + (i % 3) * 9 + r() * 4;
+      const flat = i % 3 !== 1;
+      const h = w.house(VX + Math.cos(a) * d, VZ + Math.sin(a) * d, 6 + r() * 3, 5 + r() * 2, (flat ? 3.4 : 3) + r() * 1.5, walls[i % walls.length], 0xa84a2a, flat);
+      const home = r() < 0.85;
+      const glass = h.group.children.find((m) => m.userData.noCast) as THREE.Mesh | undefined;
+      if (glass) {
+        const n = glass.geometry.attributes.position.count;
+        const col = new Float32Array(n * 3);
+        for (let v = 0; v < n; v += 4) {
+          const on = home && r() < 0.6;
+          const k = r();
+          const tint = on ? (k < 0.65 ? [1, 0.58, 0.22] : k < 0.85 ? [0.85, 0.9, 1] : [0.3, 0.45, 1]) : [0.01, 0.013, 0.02];
+          for (let q = 0; q < 4 && v + q < n; q++) col.set(tint, (v + q) * 3);
+        }
+        glass.geometry.setAttribute('color', new THREE.BufferAttribute(col, 3));
+        glass.material = winMat;
+      }
+      const gy = cityHeight(h.x, h.z);
+      if (home) {
+        bulbs.push(new THREE.SphereGeometry(0.13, 8, 6).translate(h.x, gy + 2.45, h.z + h.d / 2 + 0.22));
+        porch.push({ x: h.x, z: h.z + h.d / 2 + 2, s: 10 });
+      }
+      // Black plastic water tank on the terrace.
+      if (flat && r() < 0.7) tanks.push(new THREE.CylinderGeometry(0.62, 0.62, 1.15, 14).translate(h.x + h.w * 0.25, h.top + 0.58, h.z - h.d * 0.2));
+    }
+    {
+      const bm = new THREE.Mesh(mergeGeometries(bulbs)!, new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffc27a).multiplyScalar(5) }));
+      bm.userData.noCast = true;
+      this.scene.add(bm);
+      if (tanks.length) {
+        const tm = new THREE.Mesh(mergeGeometries(tanks)!, w.mat(0x1a1b1d, { roughness: 0.5 }));
+        tm.castShadow = true;
+        this.scene.add(tm);
+      }
+      this.pools(porch, 0xffa860, 0.55);
+    }
+    // Fireflies drifting over the paddy.
+    {
+      const N = 420;
+      const pos = new Float32Array(N * 3);
+      const ff: number[] = [];
+      for (let i = 0; i < N; i++) {
+        let x = 0, z = 0;
+        do {
+          x = VX + (r() - 0.5) * 220;
+          z = VZ + (r() - 0.5) * 280;
+        } while (Math.hypot(x - VX, z - VZ) < 44 || Math.abs(z - countryZ(x)) < 10);
+        const y = cityHeight(x, z) + 0.6 + r() * 2.2;
+        pos.set([x, y, z], i * 3);
+        ff.push(x, y, z, r() * 20);
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(N * 3), 3));
+      const pts = new THREE.Points(g, new THREE.PointsMaterial({ size: 0.32, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+      pts.frustumCulled = false;
+      pts.userData.noCast = true;
+      this.scene.add(pts);
+      this.flies = { pts, base: ff };
     }
     // A small white temple: plinth, sanctum and a curved tower with a saffron flag.
     const base = cityHeight(VX, VZ);
@@ -781,7 +1218,28 @@ export class CityMission extends Mission {
   // -------------------------------------------------------------- loop
 
   ambient(dt: number, _viewer: THREE.Vector3) {
-    if (this.carMesh) this.moveCars(dt);
+    this.t += dt;
+    if (this.cars.length) this.moveCars(dt);
+    if (this.flies) {
+      const { pts, base } = this.flies;
+      const p = pts.geometry.attributes.position as THREE.BufferAttribute;
+      const c = pts.geometry.attributes.color as THREE.BufferAttribute;
+      const t = this.t;
+      for (let i = 0; i < p.count; i++) {
+        const [x, y, z, ph] = [base[i * 4], base[i * 4 + 1], base[i * 4 + 2], base[i * 4 + 3]];
+        p.setXYZ(i, x + Math.sin(t * 0.4 + ph) * 1.6, y + Math.sin(t * 0.7 + ph * 1.3) * 0.5, z + Math.cos(t * 0.33 + ph) * 1.6);
+        // Each one glows for a moment, then goes dark for a while.
+        const k = Math.max(0, Math.sin(t * 1.1 + ph)) ** 6 * 3;
+        c.setXYZ(i, k * 0.8, k, k * 0.3);
+      }
+      p.needsUpdate = true;
+      c.needsUpdate = true;
+    }
+    // Aviation lights blink together, about once every two seconds.
+    if (this.beacon) {
+      const k = (this.t % 1.9) < 0.5 ? 4 : 0.15;
+      this.beacon.color.setRGB(k, k * 0.06, k * 0.035);
+    }
   }
 
   update(dt: number, _c: Controls) {
