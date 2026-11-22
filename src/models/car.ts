@@ -4,7 +4,7 @@
  * instanced meshes that share one matrix per vehicle; +x is the nose.
  */
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 type RGB = [number, number, number];
 

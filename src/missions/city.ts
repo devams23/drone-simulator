@@ -1,8 +1,9 @@
-// Marine Bay: a seaside megacity at golden hour. A sea road sweeps around a
-// C-shaped bay under a necklace of streetlights, with a sandy beach at the foot
-// of a green hill. Behind it, a row of Art Deco blocks, then streets of towers;
-// a cable-stayed sea bridge runs out over the water, and past the city's east
-// edge are a farming village, fields and wooded hills.
+// Marine Bay at night: a seaside megacity under a starry sky and a crescent
+// moon. A sea road sweeps around a C-shaped bay under a necklace of sodium
+// lamps, with traffic, a sandy beach and a green hill. Behind it, Art Deco
+// blocks and lit towers on a street grid crossed by two avenues; a cable-stayed
+// bridge runs out over the water. Past the east edge a lamp-lit country road
+// leads by a village of blue-washed houses, paddy and fireflies into the hills.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { noise2 } from '../assets';
@@ -1247,7 +1248,7 @@ export class CityMission extends Mission {
   }
 
   objective(): Objective {
-    return { title: 'Marine Bay', lines: ['Free flight — no objectives', 'Ride the sea road, then climb between the towers'] };
+    return { title: 'Marine Bay', lines: ['Free flight — no objectives', 'Night over the bay — ride the sea road, then out past the village'] };
   }
 
   payload(): Payload {
