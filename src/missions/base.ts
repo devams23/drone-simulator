@@ -47,6 +47,8 @@ export abstract class Mission {
   /** Sticky status line shown in the HUD, e.g. "REFILLING". */
   state = '';
   orbit = { center: new THREE.Vector3(), radius: 120, height: 55 };
+  /** Renderer look for this world: exposure and bloom. Defaults suit daylight. */
+  look?: { exposure?: number; bloom?: number; threshold?: number; radius?: number };
   protected drone!: Drone;
   protected toast: Toast = () => {};
 

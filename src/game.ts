@@ -107,6 +107,7 @@ export class Game {
   private composer?: EffectComposer;
   private renderPass?: RenderPass;
   private lens?: ShaderPass;
+  private bloom?: UnrealBloomPass;
   private autoQuality = true;
   private slow = 0;
   private frames = 0;
@@ -157,10 +158,11 @@ export class Game {
       this.renderPass = new RenderPass(this.scene, this.camera);
       this.lens = new ShaderPass(LensShader);
       c.addPass(this.renderPass);
-      c.addPass(new UnrealBloomPass(new THREE.Vector2(256, 256), 0.22, 0.55, 1.0));
+      c.addPass((this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.22, 0.55, 1.0)));
       c.addPass(this.lens);
       c.addPass(new OutputPass());
-    }
+    } else this.bloom = undefined;
+    this.applyLook();
     this.resize();
   }
 
@@ -185,6 +187,17 @@ export class Game {
     this.fx.smoke.setScale(h, fov);
   }
 
+  /** Per-world exposure and glow (a night map wants more bloom, lower threshold). */
+  private applyLook() {
+    const l = this.mission?.look;
+    this.renderer.toneMappingExposure = l?.exposure ?? 1;
+    if (this.bloom) {
+      this.bloom.strength = l?.bloom ?? 0.22;
+      this.bloom.threshold = l?.threshold ?? 1.0;
+      this.bloom.radius = l?.radius ?? 0.55;
+    }
+  }
+
   /** Build a mission's world and show it with an orbiting camera. */
   loadMission(id: WorldId) {
     disposeScene(this.scene);
@@ -195,6 +208,7 @@ export class Game {
     this.scene.add(this.camera);
     const Ctor = { canyon: CanyonMission, ice: IceMission, city: CityMission }[id];
     this.mission = new Ctor(this.scene, this.fx, this.sound);
+    this.applyLook();
     enableShadows(this.scene);
     if (this.renderPass) this.renderPass.scene = this.scene;
     this.missionId = id;
