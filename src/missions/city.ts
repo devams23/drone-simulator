@@ -89,7 +89,7 @@ function facadeTex(kind: Facade, seed: number) {
   gl.fillRect(0, 0, N, N);
   const homeLight = () => {
     const v = r();
-    return v < 0.5 ? null : v < 0.72 ? '232,238,255' : v < 0.94 ? '255,196,120' : '150,190,255';
+    return v < 0.22 ? null : v < 0.5 ? '232,238,255' : v < 0.9 ? '255,196,120' : '150,190,255';
   };
   const map = canvasTex(N, N, (g) => {
     if (kind === 'glass') {
@@ -99,15 +99,15 @@ function facadeTex(kind: Facade, seed: number) {
       g.fillStyle = grd;
       g.fillRect(0, 0, N, N);
       for (let f = 0; f < 10; f++) {
-        const office = r() < 0.5;
+        const office = r() < 0.8;
         const warm = r() < 0.25;
         for (let b = 0; b < 16; b++) {
           const x = b * 2 * px, y = f * 3.2 * px;
           g.fillStyle = `rgba(${r() < 0.15 ? '120,150,160' : '10,20,26'},${0.15 + r() * 0.3})`;
           g.fillRect(x, y, 2 * px, 3.2 * px);
-          if (office && r() < 0.7) {
-            const a = 0.35 + r() * 0.4;
-            gl.fillStyle = `rgba(${warm ? '255,226,180' : '226,236,255'},${a})`;
+          if (office && r() < 0.85) {
+            const a = 0.45 + r() * 0.45;
+            gl.fillStyle = `rgba(${warm ? '255,214,160' : '214,226,245'},${a})`;
             gl.fillRect(x + 3, y + 0.35 * px, 2 * px - 6, 2.5 * px);
           }
         }
@@ -271,12 +271,13 @@ function nightSky() {
   const t = canvasTex(W, H, (g) => {
     // Base gradient, zenith to horizon, then the ground below.
     const grd = g.createLinearGradient(0, 0, 0, H);
-    grd.addColorStop(0, '#02040b');
-    grd.addColorStop(0.2, '#050b1d');
-    grd.addColorStop(0.4, '#0b1733');
-    grd.addColorStop(0.49, '#16264a');
-    grd.addColorStop(0.5, '#141d30');
-    grd.addColorStop(1, '#05070c');
+    // Blue hour rather than midnight: a deep but luminous blue, lit from below by the city.
+    grd.addColorStop(0, '#0a1430');
+    grd.addColorStop(0.2, '#13234d');
+    grd.addColorStop(0.38, '#1f3768');
+    grd.addColorStop(0.47, '#36508a');
+    grd.addColorStop(0.5, '#2a3a5e');
+    grd.addColorStop(1, '#0a0e18');
     g.fillStyle = grd;
     g.fillRect(0, 0, W, H);
     // u -> compass: u = atan2(z, x) / 2pi + 0.5, so west (-x) sits at u = 0 and 1.
@@ -432,13 +433,13 @@ export class CityMission extends Mission {
       s.background = s.environment = sky;
       s.backgroundRotation.set(0, 0, 0);
       s.environmentRotation.set(0, 0, 0);
-      s.environmentIntensity = 2.4;
-      s.fog = new THREE.Fog(0x161a2c, 260, 2600);
-      w.sun.color.setHex(0x9fb6e8);
-      w.sun.intensity = 0.7;
+      s.environmentIntensity = 3.4;
+      s.fog = new THREE.Fog(0x2a3658, 300, 2600);
+      w.sun.color.setHex(0xa8bdf0);
+      w.sun.intensity = 1.1;
       w.sunDir.copy(MOON);
       w.follow(new THREE.Vector3());
-      this.look = { exposure: 1.05, bloom: 0.85, threshold: 0.55, radius: 0.65 };
+      this.look = { exposure: 1.35, bloom: 0.95, threshold: 0.6, radius: 0.6 };
     }
     this.waterY = 0;
     w.water(this.waterY, 0x0c1c28);
@@ -501,7 +502,7 @@ export class CityMission extends Mission {
     const lamps: THREE.BufferGeometry[] = [];
     const pools: { x: number; z: number; s: number }[] = [];
     {
-      for (let s = 8; s < this.road.total; s += 22) {
+      for (let s = 8; s < this.road.total; s += 15) {
         const { p, t } = this.along(s);
         const nx = -t.z, nz = t.x; // left normal (toward the sea for this road direction)
         const side = nx < 0 ? 1 : -1;
@@ -512,7 +513,7 @@ export class CityMission extends Mission {
         arm.translate(x - nx * side * 1.1, GROUND + 8.9, z - nz * side * 1.1);
         poles.push(arm);
         lamps.push(new THREE.SphereGeometry(0.32, 10, 6).scale(1, 0.55, 1).translate(x - nx * side * 2.2, GROUND + 8.8, z - nz * side * 2.2));
-        pools.push({ x: x - nx * side * 3.4, z: z - nz * side * 3.4, s: 21 });
+        pools.push({ x: x - nx * side * 3.4, z: z - nz * side * 3.4, s: 26 });
       }
     }
     // Two inland avenues with their own traffic, on streets the courses leave alone,
@@ -523,7 +524,7 @@ export class CityMission extends Mission {
       for (let x = coast(-148) + 74; x <= 320; x += 4) a2.push(new THREE.Vector3(x, GROUND + 0.07, -148));
       for (let x = 325; x <= 720; x += 3) a3.push(new THREE.Vector3(x, cityHeight(x, countryZ(x)) + 0.22, countryZ(x)));
       let lane: THREE.Material | undefined;
-      for (const [pts, gap, both] of [[a1, 24, true], [a2, 24, true], [a3, 42, false]] as const) {
+      for (const [pts, gap, both] of [[a1, 15, true], [a2, 15, true], [a3, 26, false]] as const) {
         const rd = makeRoad(pts, [-2.2, 2.2]);
         this.avenues.push(rd);
         this.ribbon(pts, pts === a3 ? 8 : 9, pts === a3 ? null : GROUND + 0.07, (lane ??= this.laneMat()));
@@ -540,16 +541,16 @@ export class CityMission extends Mission {
           arm.translate(x - nx * 0.8, gy + 6.95, z - nz * 0.8);
           poles.push(arm);
           lamps.push(new THREE.SphereGeometry(0.26, 10, 6).scale(1, 0.55, 1).translate(x - nx * 1.6, gy + 6.85, z - nz * 1.6));
-          pools.push({ x: x - nx * 2.4, z: z - nz * 2.4, s: 15 });
+          pools.push({ x: x - nx * 2.4, z: z - nz * 2.4, s: 20 });
         }
       }
     }
     {
       this.scene.add(new THREE.Mesh(mergeGeometries(poles.map((g) => (g.index ? g.toNonIndexed() : g)))!, w.mat(0x4c5258, { metalness: 0.6, roughness: 0.4 })));
-      const lm = new THREE.Mesh(mergeGeometries(lamps)!, new THREE.MeshStandardMaterial({ color: 0xffd9a0, emissive: 0xffa850, emissiveIntensity: 6 }));
+      const lm = new THREE.Mesh(mergeGeometries(lamps)!, new THREE.MeshStandardMaterial({ color: 0xffd9a0, emissive: 0xffa850, emissiveIntensity: 9 }));
       lm.userData.noCast = true;
       this.scene.add(lm);
-      this.pools(pools, 0xff9a48, 0.38);
+      this.pools(pools, 0xff9a48, 0.7);
     }
 
     // ---- traffic: modelled sedans, black-and-yellow taxis and red city buses.
@@ -914,8 +915,8 @@ export class CityMission extends Mission {
       }
     }
     const mats: Record<Facade, THREE.Material> = {
-      glass: facadeMat('glass', 5, 1.15),
-      flats: facadeMat('flats', 6),
+      glass: facadeMat('glass', 5, 0.8),
+      flats: facadeMat('flats', 6, 1.4),
       old: facadeMat('old', 7, 1.5),
     };
     for (const k of Object.keys(by) as Facade[]) {
@@ -1101,7 +1102,7 @@ export class CityMission extends Mission {
         const n = glass.geometry.attributes.position.count;
         const col = new Float32Array(n * 3);
         for (let v = 0; v < n; v += 4) {
-          const on = home && r() < 0.6;
+          const on = home && r() < 0.85;
           const k = r();
           const tint = on ? (k < 0.65 ? [1, 0.58, 0.22] : k < 0.85 ? [0.85, 0.9, 1] : [0.3, 0.45, 1]) : [0.01, 0.013, 0.02];
           for (let q = 0; q < 4 && v + q < n; q++) col.set(tint, (v + q) * 3);
@@ -1126,7 +1127,32 @@ export class CityMission extends Mission {
         tm.castShadow = true;
         this.scene.add(tm);
       }
-      this.pools(porch, 0xffa860, 0.55);
+      this.pools(porch, 0xffa860, 0.8);
+      // Village street lights: a ring of lamp posts along the lane between the houses.
+      const vp: THREE.BufferGeometry[] = [];
+      const vl: THREE.BufferGeometry[] = [];
+      const vpool: { x: number; z: number; s: number }[] = [];
+      for (let i = 0; i < 14; i++) {
+        const a = (i / 14) * Math.PI * 2 + 0.11;
+        for (const d of [12, 50]) {
+          if (d === 50 && i % 2) continue;
+          const x = VX + Math.cos(a) * d, z = VZ + Math.sin(a) * d;
+          const gy = cityHeight(x, z);
+          const ix = -Math.cos(a), iz = -Math.sin(a);
+          vp.push(new THREE.CylinderGeometry(0.06, 0.09, 5.6, 6).translate(x, gy + 2.8, z));
+          const arm = new THREE.CylinderGeometry(0.04, 0.04, 1.2, 5).rotateZ(Math.PI / 2);
+          arm.rotateY(Math.atan2(-iz, ix));
+          arm.translate(x + ix * 0.55, gy + 5.5, z + iz * 0.55);
+          vp.push(arm);
+          vl.push(new THREE.SphereGeometry(0.2, 10, 6).scale(1, 0.55, 1).translate(x + ix * 1.1, gy + 5.4, z + iz * 1.1));
+          vpool.push({ x: x + ix * 1.6, z: z + iz * 1.6, s: 16 });
+        }
+      }
+      this.scene.add(new THREE.Mesh(mergeGeometries(vp.map((g) => (g.index ? g.toNonIndexed() : g)))!, w.mat(0x4c5258, { metalness: 0.6, roughness: 0.4 })));
+      const vm = new THREE.Mesh(mergeGeometries(vl)!, new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffc480).multiplyScalar(6) }));
+      vm.userData.noCast = true;
+      this.scene.add(vm);
+      this.pools(vpool, 0xff9a48, 0.75);
     }
     // Fireflies drifting over the paddy.
     {
